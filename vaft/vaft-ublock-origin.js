@@ -292,7 +292,7 @@ twitch-videoad.js text/javascript
                                         IsStrippingAdSegments: false,
                                         NumStrippedAdSegments: 0
                                     };
-                                    const lines = encodingsM3u8.replaceAll('\r', '').split('\n');
+                                    const lines = encodingsM3u8.split(/\r?\n/);
                                     for (let i = 0; i < lines.length - 1; i++) {
                                         if (lines[i].startsWith('#EXT-X-STREAM-INF') && lines[i + 1].includes('.m3u8')) {
                                             const attributes = parseAttributes(lines[i]);
@@ -372,7 +372,7 @@ twitch-videoad.js text/javascript
     // Remove ad segments from an m3u8 playlist and cache their URLs for replacement
     function stripAdSegments(textStr, stripAllSegments, streamInfo) {
         let hasStrippedAdSegments = false;
-        const lines = textStr.replaceAll('\r', '').split('\n');
+        const lines = textStr.split(/\r?\n/);
         const newAdUrl = 'https://twitch.tv';
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i];
@@ -413,7 +413,7 @@ twitch-videoad.js text/javascript
     }
     // Find the closest matching stream URL for a given resolution from a master m3u8
     function getStreamUrlForResolution(encodingsM3u8, resolutionInfo) {
-        const encodingsLines = encodingsM3u8.replaceAll('\r', '').split('\n');
+        const encodingsLines = encodingsM3u8.split(/\r?\n/);
         const [targetWidth, targetHeight] = resolutionInfo.Resolution.split('x').map(Number);
         let matchedResolutionUrl = null;
         let matchedFrameRate = false;
@@ -467,7 +467,7 @@ twitch-videoad.js text/javascript
                 });
             }
             if (!streamInfo.IsMidroll) {
-                const lines = textStr.replaceAll('\r', '').split('\n');
+                const lines = textStr.split(/\r?\n/);
                 for (let i = 0; i < lines.length; i++) {
                     const line = lines[i];
                     if (line.startsWith('#EXTINF') && lines.length > i + 1) {
