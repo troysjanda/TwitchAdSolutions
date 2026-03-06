@@ -275,12 +275,12 @@
                     });
                 } else if (url.includes('/channel/hls/') && !url.includes('picture-by-picture')) {
                     V2API = url.includes('/api/v2/');
-                    const channelName = (new URL(url)).pathname.match(/([^\/]+)(?=\.\w+$)/)[0];
+                    const parsedUrl = new URL(url);
+                    const channelName = parsedUrl.pathname.match(/([^\/]+)(?=\.\w+$)/)[0];
                     if (ForceAccessTokenPlayerType) {
                         // parent_domains is used to determine if the player is embeded and stripping it gets rid of fake ads
-                        const tempUrl = new URL(url);
-                        tempUrl.searchParams.delete('parent_domains');
-                        url = tempUrl.toString();
+                        parsedUrl.searchParams.delete('parent_domains');
+                        url = parsedUrl.toString();
                     }
                     return new Promise(function(resolve, reject) {
                         const processAfter = async function(response) {
@@ -300,7 +300,7 @@
                                         EncodingsM3U8: encodingsM3u8,
                                         ModifiedM3U8: null,
                                         IsUsingModifiedM3U8: false,
-                                        UsherParams: (new URL(url)).search,
+                                        UsherParams: parsedUrl.search,
                                         RequestedAds: new Set(),
                                         Urls: [],// xxx.m3u8 -> { Resolution: "284x160", FrameRate: 30.0 }
                                         ResolutionList: [],
