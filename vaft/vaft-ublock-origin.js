@@ -457,6 +457,7 @@ twitch-videoad.js text/javascript
             streamInfo.IsMidroll = textStr.includes('"MIDROLL"') || textStr.includes('"midroll"');
             if (!streamInfo.IsShowingAd) {
                 streamInfo.IsShowingAd = true;
+                console.log('[AD DEBUG] Ad detected — type: ' + (streamInfo.IsMidroll ? 'midroll' : 'preroll') + ', channel: ' + streamInfo.ChannelName);
                 postMessage({
                     key: 'UpdateAdBlockBanner',
                     isMidroll: streamInfo.IsMidroll,
@@ -524,7 +525,9 @@ twitch-videoad.js text/javascript
                                     encodingsM3u8 = streamInfo.BackupEncodingsM3U8Cache[playerType] = await encodingsM3u8Response.text();
                                 }
                             }
-                        } catch (err) {}
+                        } catch (err) {
+                            console.log('[AD DEBUG] Access token failed for ' + realPlayerType + ': ' + err.message);
+                        }
                     }
                     if (encodingsM3u8) {
                         try {
@@ -541,6 +544,9 @@ twitch-videoad.js text/javascript
                                         backupM3u8 = m3u8Text;
                                         break;
                                     }
+                                    if (m3u8Text.includes(AdSignifier)) {
+                                        console.log('[AD DEBUG] Backup stream (' + playerType + ') also has ads');
+                                    }
                                     if (isFullyCachedPlayerType) {
                                         break;
                                     }
@@ -550,8 +556,12 @@ twitch-videoad.js text/javascript
                                         break;
                                     }
                                 }
+                            } else {
+                                console.log('[AD DEBUG] Backup stream fetch failed for ' + playerType + ' (status ' + streamM3u8Response.status + ')');
                             }
-                        } catch (err) {}
+                        } catch (err) {
+                            console.log('[AD DEBUG] Backup stream error for ' + playerType + ': ' + err.message);
+                        }
                     }
                     streamInfo.BackupEncodingsM3U8Cache[playerType] = null;
                     if (isFreshM3u8) {
@@ -569,11 +579,15 @@ twitch-videoad.js text/javascript
                     streamInfo.ActiveBackupPlayerType = backupPlayerType;
                     console.log(`Blocking${(streamInfo.IsMidroll ? ' midroll ' : ' ')}ads (${backupPlayerType})`);
                 }
+            } else {
+                console.log('[AD DEBUG] No ad-free backup stream found — ads may leak. Tried: ' + BackupPlayerTypes.slice(startIndex).join(', '));
             }
             // TODO: Improve hevc stripping. It should always strip when there is a codec mismatch (both ways)
             const stripHevc = isHevc && streamInfo.ModifiedM3U8;
             if (IsAdStrippingEnabled || stripHevc) {
                 textStr = stripAdSegments(textStr, stripHevc, streamInfo);
+            } else if (!backupM3u8) {
+                console.log('[AD DEBUG] Ad stripping disabled and no backup — ads WILL show');
             }
         } else if (streamInfo.IsShowingAd) {
             console.log('Finished blocking ads');
