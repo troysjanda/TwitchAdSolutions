@@ -1044,6 +1044,8 @@ twitch-videoad.js text/javascript
             block(e);
         };
         document.addEventListener('visibilitychange', visibilityChange, true);
+        window.addEventListener('blur', block, true);
+        document.hasFocus = () => true;
         // Hooks for preserving volume / resolution
         try {
             const keysToCache = [
