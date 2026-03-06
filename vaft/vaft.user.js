@@ -63,6 +63,12 @@
     let localStorageHookFailed = false;
     const twitchWorkers = [];
     let cachedRootNode = null;// Cached #root DOM element (never changes in React SPAs)
+    const RE_SERVER_TIME_V2 = /#EXT-X-SESSION-DATA:DATA-ID="SERVER-TIME",VALUE="([^"]+)"/;
+    const RE_SERVER_TIME = /SERVER-TIME="([0-9.]+)"/;
+    const RE_SERVER_TIME_REPLACE_V2 = /(#EXT-X-SESSION-DATA:DATA-ID="SERVER-TIME",VALUE=")[^"]+(")/;
+    const RE_SERVER_TIME_REPLACE = /(SERVER-TIME=")[0-9.]+"/;
+    const RE_AD_URL = /(X-TV-TWITCH-AD-URL=")(?:[^"]*)(")/g;
+    const RE_AD_CLICK_URL = /(X-TV-TWITCH-AD-CLICK-TRACKING-URL=")(?:[^"]*)(")/g;
     // Strings used to detect and handle conflicting Twitch worker overrides (e.g. TwitchNoSub)
     const workerStringConflicts = [
         'twitch',
@@ -368,17 +374,17 @@
     }
     function getServerTimeFromM3u8(encodingsM3u8) {
         if (V2API) {
-            const matches = encodingsM3u8.match(/#EXT-X-SESSION-DATA:DATA-ID="SERVER-TIME",VALUE="([^"]+)"/);
+            const matches = encodingsM3u8.match(RE_SERVER_TIME_V2);
             return matches && matches.length > 1 ? matches[1] : null;
         }
-        const matches = encodingsM3u8.match('SERVER-TIME="([0-9.]+)"');
+        const matches = encodingsM3u8.match(RE_SERVER_TIME);
         return matches && matches.length > 1 ? matches[1] : null;
     }
     function replaceServerTimeInM3u8(encodingsM3u8, newServerTime) {
         if (V2API) {
-            return newServerTime ? encodingsM3u8.replace(/(#EXT-X-SESSION-DATA:DATA-ID="SERVER-TIME",VALUE=")[^"]+(")/, `$1${newServerTime}$2`) : encodingsM3u8;
+            return newServerTime ? encodingsM3u8.replace(RE_SERVER_TIME_REPLACE_V2, `$1${newServerTime}$2`) : encodingsM3u8;
         }
-        return newServerTime ? encodingsM3u8.replace(new RegExp('(SERVER-TIME=")[0-9.]+"'), `SERVER-TIME="${newServerTime}"`) : encodingsM3u8;
+        return newServerTime ? encodingsM3u8.replace(RE_SERVER_TIME_REPLACE, `SERVER-TIME="${newServerTime}"`) : encodingsM3u8;
     }
     // Remove ad segments from an m3u8 playlist and cache their URLs for replacement
     function stripAdSegments(textStr, stripAllSegments, streamInfo) {
@@ -388,9 +394,11 @@
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i];
             // Remove tracking urls which appear in the overlay UI
+            RE_AD_URL.lastIndex = 0;
+            RE_AD_CLICK_URL.lastIndex = 0;
             lines[i] = line
-                .replaceAll(/(X-TV-TWITCH-AD-URL=")(?:[^"]*)(")/g, `$1${newAdUrl}$2`)
-                .replaceAll(/(X-TV-TWITCH-AD-CLICK-TRACKING-URL=")(?:[^"]*)(")/g, `$1${newAdUrl}$2`);
+                .replaceAll(RE_AD_URL, `$1${newAdUrl}$2`)
+                .replaceAll(RE_AD_CLICK_URL, `$1${newAdUrl}$2`);
             if (i < lines.length - 1 && line.startsWith('#EXTINF') && (!line.includes(',live') || stripAllSegments || AllSegmentsAreAdSegments)) {
                 const segmentUrl = lines[i + 1];
                 if (!AdSegmentCache.has(segmentUrl)) {
