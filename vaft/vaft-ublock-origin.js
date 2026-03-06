@@ -403,8 +403,9 @@ twitch-videoad.js text/javascript
             streamInfo.NumStrippedAdSegments = 0;
         }
         streamInfo.IsStrippingAdSegments = hasStrippedAdSegments;
+        const now = Date.now();
         AdSegmentCache.forEach((value, key, map) => {
-            if (value < Date.now() - 120000) {
+            if (value < now - 120000) {
                 map.delete(key);
             }
         });
