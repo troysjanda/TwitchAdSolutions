@@ -98,7 +98,6 @@
             const workerString = proto.toString();
             if (workerStringReinsert.some((x) => workerString.includes(x))) {
                 result.push(proto);
-            } else {
             }
             proto = Object.getPrototypeOf(proto);
         }
@@ -379,10 +378,10 @@
     function getServerTimeFromM3u8(encodingsM3u8) {
         if (V2API) {
             const matches = encodingsM3u8.match(/#EXT-X-SESSION-DATA:DATA-ID="SERVER-TIME",VALUE="([^"]+)"/);
-            return matches.length > 1 ? matches[1] : null;
+            return matches && matches.length > 1 ? matches[1] : null;
         }
         const matches = encodingsM3u8.match('SERVER-TIME="([0-9.]+)"');
-        return matches.length > 1 ? matches[1] : null;
+        return matches && matches.length > 1 ? matches[1] : null;
     }
     function replaceServerTimeInM3u8(encodingsM3u8, newServerTime) {
         if (V2API) {
@@ -1108,7 +1107,7 @@
     }
     window.simulateAds = (depth) => {
         if (depth === undefined || depth < 0) {
-            console.log('Ad depth paramter required (0 = no simulated ad, 1+ = use backup player for given depth)');
+            console.log('Ad depth parameter required (0 = no simulated ad, 1+ = use backup player for given depth)');
             return;
         }
         postTwitchWorkerMessage('SimulateAds', depth);
