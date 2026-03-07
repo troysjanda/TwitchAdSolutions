@@ -732,7 +732,9 @@
                 } else if (state.props?.content?.type === 'live' && !player.isPaused() && !player.getHTMLVideoElement()?.ended && playerBufferState.lastFixTime <= Date.now() - PlayerBufferingMinRepeatDelay && !isActivelyStrippingAds) {
                     const m3u8Url = player.core?.state?.path;
                     if (m3u8Url) {
-                      const fileName = new URL(m3u8Url).pathname.split('/').pop();
+                      const lastSlash = m3u8Url.lastIndexOf('/');
+                      const queryStart = m3u8Url.indexOf('?', lastSlash);
+                      const fileName = m3u8Url.substring(lastSlash + 1, queryStart !== -1 ? queryStart : undefined);
                       if (fileName?.endsWith('.m3u8')) {
                           const channelName = fileName.slice(0, -5);
                           if (playerBufferState.channelName != channelName) {
