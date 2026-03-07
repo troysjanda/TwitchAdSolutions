@@ -797,10 +797,18 @@
         setTimeout(monitorPlayerBuffering, PlayerBufferingDelay);
     }
     // Auto-recover from player errors (#2000, #3000, #4000) by reloading the page
-    let playerErrorRetries = 0;
-    let lastPlayerErrorTime = 0;
     const PLAYER_ERROR_MAX_RETRIES = 3;
     const PLAYER_ERROR_COOLDOWN = 5000;// 5s cooldown between recovery attempts
+    function getPlayerErrorRetries() {
+        return parseInt(sessionStorage.getItem('twitchAdSolutions_errorRetries') || '0', 10);
+    }
+    function setPlayerErrorRetries(count) {
+        sessionStorage.setItem('twitchAdSolutions_errorRetries', String(count));
+    }
+    function clearPlayerErrorRetries() {
+        sessionStorage.removeItem('twitchAdSolutions_errorRetries');
+    }
+    let lastPlayerErrorTime = 0;
     function monitorPlayerErrors() {
         const contentGate = document.querySelector('[data-a-target="player-overlay-content-gate"]');
         if (contentGate) {
@@ -808,16 +816,22 @@
             if (text.includes('#2000') || text.includes('#3000') || text.includes('#4000')) {
                 const now = Date.now();
                 if (now - lastPlayerErrorTime > PLAYER_ERROR_COOLDOWN) {
-                    playerErrorRetries++;
+                    const retries = getPlayerErrorRetries() + 1;
+                    setPlayerErrorRetries(retries);
                     lastPlayerErrorTime = now;
-                    if (playerErrorRetries <= PLAYER_ERROR_MAX_RETRIES) {
-                        console.log('[AD DEBUG] Player error detected, reloading page (attempt ' + playerErrorRetries + '/' + PLAYER_ERROR_MAX_RETRIES + ')');
+                    if (retries <= PLAYER_ERROR_MAX_RETRIES) {
+                        console.log('[AD DEBUG] Player error detected, reloading page (attempt ' + retries + '/' + PLAYER_ERROR_MAX_RETRIES + ')');
                         window.location.reload();
                         return;
                     } else {
                         console.log('[AD DEBUG] Player error persists after ' + PLAYER_ERROR_MAX_RETRIES + ' retries, giving up');
                     }
                 }
+            }
+        } else {
+            // Player is working, clear retry counter
+            if (getPlayerErrorRetries() > 0) {
+                clearPlayerErrorRetries();
             }
         }
         setTimeout(monitorPlayerErrors, 3000);
