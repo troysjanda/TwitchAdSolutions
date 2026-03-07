@@ -797,19 +797,26 @@
     }
     // Auto-recover from player errors (#2000, #3000, #4000) by reloading the player
     let playerErrorRetries = 0;
+    let lastPlayerErrorTime = 0;
+    const PLAYER_ERROR_MAX_RETRIES = 3;
+    const PLAYER_ERROR_COOLDOWN = 30000;// 30s cooldown between recovery attempts
     function monitorPlayerErrors() {
         const contentGate = document.querySelector('[data-a-target="player-overlay-content-gate"]');
         if (contentGate) {
             const text = contentGate.textContent;
             if (text.includes('#2000') || text.includes('#3000') || text.includes('#4000')) {
-                playerErrorRetries++;
-                console.log('[AD DEBUG] Player error detected (attempt ' + playerErrorRetries + ')');
-                const playerAndState = getPlayerAndState();
-                if (playerAndState?.player && playerAndState?.state) {
-                    doTwitchPlayerTask(false, true);
-                } else {
-                    console.log('[AD DEBUG] Player not initialized — navigating to reload');
-                    window.location.reload();
+                const now = Date.now();
+                if (playerErrorRetries < PLAYER_ERROR_MAX_RETRIES && now - lastPlayerErrorTime > PLAYER_ERROR_COOLDOWN) {
+                    playerErrorRetries++;
+                    lastPlayerErrorTime = now;
+                    console.log('[AD DEBUG] Player error detected (attempt ' + playerErrorRetries + '/' + PLAYER_ERROR_MAX_RETRIES + ')');
+                    const playerAndState = getPlayerAndState();
+                    if (playerAndState?.player && playerAndState?.state) {
+                        doTwitchPlayerTask(false, true);
+                    } else {
+                        console.log('[AD DEBUG] Player not initialized — navigating to reload');
+                        window.location.reload();
+                    }
                 }
             }
         } else {
