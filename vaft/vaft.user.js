@@ -63,6 +63,7 @@
     let localStorageHookFailed = false;
     const twitchWorkers = [];
     let cachedRootNode = null;// Cached #root DOM element (never changes in React SPAs)
+    let cachedPlayerRootDiv = null;// Cached .video-player element
     const RE_SERVER_TIME_V2 = /#EXT-X-SESSION-DATA:DATA-ID="SERVER-TIME",VALUE="([^"]+)"/;
     const RE_SERVER_TIME = /SERVER-TIME="([0-9.]+)"/;
     const RE_SERVER_TIME_REPLACE_V2 = /(#EXT-X-SESSION-DATA:DATA-ID="SERVER-TIME",VALUE=")[^"]+(")/;
@@ -801,7 +802,10 @@
         setTimeout(monitorPlayerBuffering, PlayerBufferingDelay);
     }
     function updateAdblockBanner(data) {
-        const playerRootDiv = document.querySelector('.video-player');
+        if (!cachedPlayerRootDiv || !cachedPlayerRootDiv.isConnected) {
+            cachedPlayerRootDiv = document.querySelector('.video-player');
+        }
+        const playerRootDiv = cachedPlayerRootDiv;
         if (playerRootDiv != null) {
             let adBlockDiv = null;
             adBlockDiv = playerRootDiv.querySelector('.adblock-overlay');
