@@ -120,6 +120,7 @@ twitch-videoad.js text/javascript
                 } catch {}
                 if (!isTwitchWorker) {
                     super(twitchBlobUrl, options);
+                    console.log('[AD DEBUG] Non-Twitch worker skipped: ' + twitchBlobUrl);
                     return;
                 }
                 console.log('[AD DEBUG] Worker intercepted — injecting ad-block hooks');
@@ -971,6 +972,7 @@ twitch-videoad.js text/javascript
     // Hook fetch() in the window scope to capture auth headers and modify player type requests
     function hookFetch() {
         console.log('[AD DEBUG] Window fetch hook installed');
+        let hasLoggedHeaders = false;
         const realFetch = window.fetch;
         window.realFetch = realFetch;
         window.fetch = function(url, init, ...args) {
@@ -995,6 +997,10 @@ twitch-videoad.js text/javascript
                     }
                     if (typeof init.headers['Authorization'] === 'string' && init.headers['Authorization'] !== AuthorizationHeader) {
                         postTwitchWorkerMessage('UpdateAuthorizationHeader', AuthorizationHeader = init.headers['Authorization']);
+                    }
+                    if (!hasLoggedHeaders && GQLDeviceID && AuthorizationHeader) {
+                        hasLoggedHeaders = true;
+                        console.log('[AD DEBUG] GQL headers captured — DeviceId: ' + (GQLDeviceID ? 'yes' : 'no') + ', Auth: ' + (AuthorizationHeader ? 'yes' : 'no') + ', Integrity: ' + (ClientIntegrityHeader ? 'yes' : 'no'));
                     }
                     // Get rid of mini player above chat - TODO: Reject this locally instead of having server reject it
                     if (init && typeof init.body === 'string' && init.body.includes('PlaybackAccessToken') && init.body.includes('picture-by-picture')) {
