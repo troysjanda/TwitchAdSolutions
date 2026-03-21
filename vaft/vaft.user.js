@@ -117,8 +117,12 @@
     }
     function isValidWorker(worker) {
         const workerString = worker.toString();
-        return !workerStringConflicts.some((x) => workerString.includes(x))
-            || workerStringReinsert.some((x) => workerString.includes(x));
+        const hasConflict = workerStringConflicts.some((x) => workerString.includes(x));
+        const hasReinsert = workerStringReinsert.some((x) => workerString.includes(x));
+        if (hasConflict && !hasReinsert) {
+            console.log('[AD DEBUG] Worker rejected — conflict string found: ' + workerStringConflicts.filter((x) => workerString.includes(x)).join(', '));
+        }
+        return !hasConflict || hasReinsert;
     }
     // Replace window.Worker to intercept Twitch's video worker and inject ad-blocking logic
     function hookWindowWorker() {
