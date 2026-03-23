@@ -971,6 +971,11 @@
     }
     window.reloadTwitchPlayer = reloadTwitchPlayer;
     declareOptions(window);
+    try {
+        if (localStorage.getItem('twitchAdSolutions_resumeAfterAd') === 'true') {
+            ResumeAfterAd = true;
+        }
+    } catch {}
     hookWindowWorker();
     hookFetch();
     monitorLiveStatus();
