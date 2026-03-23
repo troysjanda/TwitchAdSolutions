@@ -73,7 +73,10 @@ The scripts support runtime configuration via `localStorage`. Set values in the 
 
 **`twitchAdSolutions_playerType`** (default: `popout`)
 - Changes the player type used for access token requests
-- Possible values: `popout`, `embed`, `site`, `autoplay`
+- `popout` - popout player context, tends to receive fewer ads (default)
+- `embed` - embedded player context, used for third-party sites
+- `site` - normal site player, standard Twitch experience (most ads)
+- `autoplay` - autoplay context, lower quality (360p)
 - Not set - uses default (`popout`)
 
 ```js
