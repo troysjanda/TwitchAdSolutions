@@ -849,7 +849,8 @@ twitch-videoad.js text/javascript
         } catch {}
         playerState.setSrc({ isNewMediaPlayerInstance: true, refreshAccessToken: true });
         player.play();
-        if (localStorageHookFailed && (currentQualityLS || currentMutedLS || currentVolumeLS)) {
+        // Always restore muted/volume state after reload — Chrome autoplay policy can force muted
+        if (currentQualityLS || currentMutedLS || currentVolumeLS) {
             setTimeout(() => {
                 try {
                     if (currentQualityLS) {
