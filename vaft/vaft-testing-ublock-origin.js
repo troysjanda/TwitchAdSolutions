@@ -301,6 +301,7 @@ twitch-videoad.js text/javascript
                                         ResolutionList: [],
                                         BackupEncodingsM3U8Cache: [],
                                         ActiveBackupPlayerType: null,
+                                        PinnedBackupPlayerType: null,
                                         IsMidroll: false,
                                         IsStrippingAdSegments: false,
                                         NumStrippedAdSegments: 0,
@@ -549,8 +550,17 @@ twitch-videoad.js text/javascript
                 startIndex = PlayerReloadMinimalRequestsPlayerIndex;
                 isDoingMinimalRequests = true;
             }
-            for (let playerTypeIndex = startIndex; !backupM3u8 && playerTypeIndex < BackupPlayerTypes.length; playerTypeIndex++) {
-                const playerType = BackupPlayerTypes[playerTypeIndex];
+            // Try pinned backup player type first if available
+            const playerTypesToTry = [...BackupPlayerTypes];
+            if (streamInfo.PinnedBackupPlayerType) {
+                const pinnedIndex = playerTypesToTry.indexOf(streamInfo.PinnedBackupPlayerType);
+                if (pinnedIndex > 0) {
+                    playerTypesToTry.splice(pinnedIndex, 1);
+                    playerTypesToTry.unshift(streamInfo.PinnedBackupPlayerType);
+                }
+            }
+            for (let playerTypeIndex = startIndex; !backupM3u8 && playerTypeIndex < playerTypesToTry.length; playerTypeIndex++) {
+                const playerType = playerTypesToTry[playerTypeIndex];
                 const realPlayerType = playerType.replace('-CACHED', '');
                 if (streamInfo.FailedBackupPlayerTypes.has(realPlayerType)) {
                     continue;
@@ -596,7 +606,7 @@ twitch-videoad.js text/javascript
                                     if (playerType == FallbackPlayerType) {
                                         fallbackM3u8 = m3u8Text;
                                     }
-                                    if ((!hasAdTags(m3u8Text) && (SimulatedAdsDepth == 0 || playerTypeIndex >= SimulatedAdsDepth - 1)) || (!fallbackM3u8 && playerTypeIndex >= BackupPlayerTypes.length - 1)) {
+                                    if ((!hasAdTags(m3u8Text) && (SimulatedAdsDepth == 0 || playerTypeIndex >= SimulatedAdsDepth - 1)) || (!fallbackM3u8 && playerTypeIndex >= playerTypesToTry.length - 1)) {
                                         backupPlayerType = playerType;
                                         backupM3u8 = m3u8Text;
                                         break;
@@ -634,10 +644,11 @@ twitch-videoad.js text/javascript
                 textStr = backupM3u8;
                 if (streamInfo.ActiveBackupPlayerType != backupPlayerType) {
                     streamInfo.ActiveBackupPlayerType = backupPlayerType;
+                    streamInfo.PinnedBackupPlayerType = backupPlayerType;
                     console.log(`Blocking${(streamInfo.IsMidroll ? ' midroll ' : ' ')}ads (${backupPlayerType})`);
                 }
             } else {
-                console.log('[AD DEBUG] No ad-free backup stream found — ads may leak. Tried: ' + BackupPlayerTypes.slice(startIndex).join(', '));
+                console.log('[AD DEBUG] No ad-free backup stream found — ads may leak. Tried: ' + playerTypesToTry.slice(startIndex).join(', '));
             }
             // TODO: Improve hevc stripping. It should always strip when there is a codec mismatch (both ways)
             const stripHevc = isHevc && streamInfo.ModifiedM3U8;
