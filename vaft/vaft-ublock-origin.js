@@ -12,7 +12,8 @@ twitch-videoad.js text/javascript
     // Configuration and state shared between window and worker scopes
     function declareOptions(scope) {
         scope.AdSignifier = 'stitched';// Legacy single signifier (kept for compatibility)
-        scope.AdSignifiers = ['stitched', 'stitched-ad', 'X-TV-TWITCH-AD', 'EXT-X-CUE-OUT', 'EXT-X-DATERANGE:CLASS="twitch-stitched-ad"'];
+        scope.AdSignifiers = ['stitched', 'stitched-ad', 'X-TV-TWITCH-AD', 'EXT-X-CUE-OUT', 'EXT-X-DATERANGE:CLASS="twitch-stitched-ad"', 'SCTE35-OUT'];
+        scope.AdSegmentURLPatterns = ['/adsquared/', '/_404/', '/processing'];
         scope.ClientID = 'kimne78kx3ncx6brgo4mv6wki5h1ko';
         scope.BackupPlayerTypes = [
             'embed',//Source
@@ -413,6 +414,10 @@ twitch-videoad.js text/javascript
                 }
                 AdSegmentCache.set(segmentUrl, Date.now());
                 hasStrippedAdSegments = true;
+            } else if (i < lines.length - 1 && line.startsWith('#EXTINF') && AdSegmentURLPatterns.some((p) => lines[i + 1].includes(p))) {
+                AdSegmentCache.set(lines[i + 1], Date.now());
+                hasStrippedAdSegments = true;
+                streamInfo.NumStrippedAdSegments++;
             }
             if (AdSignifiers.some((s) => line.includes(s))) {
                 hasStrippedAdSegments = true;
