@@ -13,7 +13,8 @@ twitch-videoad.js text/javascript
         scope.OPT_BACKUP_PLAYER_TYPES = [ 'autoplay', 'picture-by-picture', /*'autoplay-ALT',*/ 'embed' ];
         scope.OPT_FORCE_ACCESS_TOKEN_PLAYER_TYPE = 'popout';
         scope.AD_SIGNIFIER = 'stitched-ad';// Legacy single signifier (kept for compatibility)
-        scope.AD_SIGNIFIERS = ['stitched', 'stitched-ad', 'X-TV-TWITCH-AD', 'EXT-X-CUE-OUT', 'EXT-X-DATERANGE:CLASS="twitch-stitched-ad"'];
+        scope.AD_SIGNIFIERS = ['stitched', 'stitched-ad', 'X-TV-TWITCH-AD', 'EXT-X-CUE-OUT', 'EXT-X-DATERANGE:CLASS="twitch-stitched-ad"', 'SCTE35-OUT'];
+        scope.AD_SEGMENT_URL_PATTERNS = ['/adsquared/', '/_404/', '/processing'];
         scope.LIVE_SIGNIFIER = ',live';
         scope.CLIENT_ID = 'kimne78kx3ncx6brgo4mv6wki5h1ko';
         // These are only really for Worker scope...
@@ -28,6 +29,7 @@ twitch-videoad.js text/javascript
         scope.IsAdStrippingEnabled = true;
         scope.AdSegmentCache = new Map();
         scope.AllSegmentsAreAdSegments = false;
+        scope.ReloadPlayerAfterAd = true;// After the ad finishes do a player reload instead of pause/play
     }
     let twitchPlayerAndState = null;
     let localStorageHookFailed = false;
@@ -120,6 +122,8 @@ twitch-videoad.js text/javascript
                     ${updateAdblockBannerForStream.toString()}
                     const workerString = getWasmWorkerJs('${twitchBlobUrl.replaceAll("'", "%27")}');
                     declareOptions(self);
+                    ReloadPlayerAfterAd = ${ReloadPlayerAfterAd};
+                    OPT_FORCE_ACCESS_TOKEN_PLAYER_TYPE = '${OPT_FORCE_ACCESS_TOKEN_PLAYER_TYPE}';
                     gql_device_id = ${gql_device_id ? "'" + gql_device_id + "'" : null};
                     AuthorizationHeader = ${AuthorizationHeader ? "'" + AuthorizationHeader + "'" : undefined};
                     ClientIntegrityHeader = ${ClientIntegrityHeader ? "'" + ClientIntegrityHeader + "'" : null};
@@ -316,7 +320,7 @@ twitch-videoad.js text/javascript
         }
         console.log('Found ads, switch to backup' + backupPlayerTypeInfo);
         if (reloadPlayer) {
-            postMessage({key:'UboReloadPlayer'});
+            postMessage({key: ReloadPlayerAfterAd ? 'UboReloadPlayer' : 'UboPauseResumePlayer'});
         }
         updateAdblockBannerForStream(streamInfo);
         return result;
@@ -349,6 +353,11 @@ twitch-videoad.js text/javascript
                 }
                 AdSegmentCache.set(segmentUrl, Date.now());
                 hasStrippedAdSegments = true;
+            } else if (i < lines.length - 1 && line.startsWith('#EXTINF') && AD_SEGMENT_URL_PATTERNS.some((p) => lines[i + 1].includes(p))) {
+                console.log('[AD DEBUG] Ad segment detected via URL pattern: ' + lines[i + 1]);
+                AdSegmentCache.set(lines[i + 1], Date.now());
+                hasStrippedAdSegments = true;
+                streamInfo.NumStrippedAdSegments++;
             } else if (i < lines.length - 1 && line.startsWith('#EXTINF') && line.includes(',live')) {
                 liveSegments.push({ extinf: line, url: lines[i + 1] });
             }
@@ -403,12 +412,12 @@ twitch-videoad.js text/javascript
                 const streamM3u8 = await streamM3u8Response.text();
                 if (streamM3u8 != null) {
                     if (!hasAdTags(streamM3u8) && SimulatedAdsDepth == 0) {
-                        console.log('No more ads on main stream. Triggering player reload to go back to main stream...');
+                        console.log('No more ads on main stream. ' + (ReloadPlayerAfterAd ? 'Triggering player reload to go back to main stream...' : 'Resuming playback...'));
                         streamInfo.IsMovingOffBackupEncodings = true;
                         streamInfo.BackupEncodings = null;
                         streamInfo.BackupEncodingsStatus.clear();
                         streamInfo.BackupEncodingsPlayerTypeIndex = -1;
-                        postMessage({key:'UboReloadPlayer'});
+                        postMessage({key: ReloadPlayerAfterAd ? 'UboReloadPlayer' : 'UboPauseResumePlayer'});
                     } else if (!streamM3u8.includes('"MIDROLL"') && !streamM3u8.includes('"midroll"')) {
                         const lines = streamM3u8.replaceAll('\r', '').split('\n');
                         for (let i = 0; i < lines.length; i++) {
@@ -974,6 +983,17 @@ twitch-videoad.js text/javascript
     }
     window.reloadTwitchPlayer = reloadTwitchPlayer;
     declareOptions(window);
+    try {
+        const lsReloadAfterAd = localStorage.getItem('twitchAdSolutions_reloadPlayerAfterAd');
+        if (lsReloadAfterAd !== null) {
+            ReloadPlayerAfterAd = lsReloadAfterAd === 'true';
+        }
+        const lsPlayerType = localStorage.getItem('twitchAdSolutions_playerType');
+        if (lsPlayerType !== null) {
+            OPT_FORCE_ACCESS_TOKEN_PLAYER_TYPE = lsPlayerType;
+        }
+    } catch {}
+    console.log('[AD DEBUG] Config: ReloadPlayerAfterAd = ' + ReloadPlayerAfterAd + ', ForceAccessTokenPlayerType = ' + OPT_FORCE_ACCESS_TOKEN_PLAYER_TYPE);
     hookWindowWorker();
     hookFetch();
     monitorLiveStatus();

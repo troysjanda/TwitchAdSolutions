@@ -23,7 +23,8 @@
     // Configuration and state shared between window and worker scopes
     function declareOptions(scope) {
         scope.AdSignifier = 'stitched';// Legacy single signifier (kept for compatibility)
-        scope.AdSignifiers = ['stitched', 'stitched-ad', 'X-TV-TWITCH-AD', 'EXT-X-CUE-OUT', 'EXT-X-DATERANGE:CLASS="twitch-stitched-ad"'];
+        scope.AdSignifiers = ['stitched', 'stitched-ad', 'X-TV-TWITCH-AD', 'EXT-X-CUE-OUT', 'EXT-X-DATERANGE:CLASS="twitch-stitched-ad"', 'SCTE35-OUT'];
+        scope.AdSegmentURLPatterns = ['/adsquared/', '/_404/', '/processing'];
         scope.ClientID = 'kimne78kx3ncx6brgo4mv6wki5h1ko';
         scope.BackupPlayerTypes = [
             'embed',//Source
@@ -157,6 +158,8 @@
                     ${replaceServerTimeInM3u8.toString()}
                     const workerString = getWasmWorkerJs('${twitchBlobUrl.replaceAll("'", "%27")}');
                     declareOptions(self);
+                    ReloadPlayerAfterAd = ${ReloadPlayerAfterAd};
+                    ForceAccessTokenPlayerType = '${ForceAccessTokenPlayerType}';
                     GQLDeviceID = ${GQLDeviceID ? "'" + GQLDeviceID + "'" : null};
                     AuthorizationHeader = ${AuthorizationHeader ? "'" + AuthorizationHeader + "'" : undefined};
                     ClientIntegrityHeader = ${ClientIntegrityHeader ? "'" + ClientIntegrityHeader + "'" : null};
@@ -424,6 +427,11 @@
                 }
                 AdSegmentCache.set(segmentUrl, Date.now());
                 hasStrippedAdSegments = true;
+            } else if (i < lines.length - 1 && line.startsWith('#EXTINF') && AdSegmentURLPatterns.some((p) => lines[i + 1].includes(p))) {
+                console.log('[AD DEBUG] Ad segment detected via URL pattern: ' + lines[i + 1]);
+                AdSegmentCache.set(lines[i + 1], Date.now());
+                hasStrippedAdSegments = true;
+                streamInfo.NumStrippedAdSegments++;
             } else if (i < lines.length - 1 && line.startsWith('#EXTINF') && line.includes(',live')) {
                 liveSegments.push({ extinf: line, url: lines[i + 1] });
             }
@@ -1159,6 +1167,17 @@
         }
     }
     declareOptions(window);
+    try {
+        const lsReloadAfterAd = localStorage.getItem('twitchAdSolutions_reloadPlayerAfterAd');
+        if (lsReloadAfterAd !== null) {
+            ReloadPlayerAfterAd = lsReloadAfterAd === 'true';
+        }
+        const lsPlayerType = localStorage.getItem('twitchAdSolutions_playerType');
+        if (lsPlayerType !== null) {
+            ForceAccessTokenPlayerType = lsPlayerType;
+        }
+    } catch {}
+    console.log('[AD DEBUG] Config: ReloadPlayerAfterAd = ' + ReloadPlayerAfterAd + ', ForceAccessTokenPlayerType = ' + ForceAccessTokenPlayerType);
     hookWindowWorker();
     hookFetch();
     if (PlayerBufferingFix) {

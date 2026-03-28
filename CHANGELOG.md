@@ -1,4 +1,10 @@
-## Changes since pixeltris (upstream)
+## Unreleased
+
+### Ad Detection
+- Add SCTE35-OUT signifier for alternative SCTE-35 marker detection
+- Add ad segment URL pattern detection (/adsquared/, /_404/, /processing)
+
+## v42.0.0
 
 ### Ad Detection
 - Add SCTE-35 ad signifier detection and CUE-OUT/CUE-IN tracking
@@ -33,6 +39,7 @@
 - Add vaft testing scripts with player error auto-recovery (#2000/#3000/#4000)
 
 ### Other
+- Add ReloadPlayerAfterAd and ForceAccessTokenPlayerType config options with localStorage toggles
 - Update userscript URLs and author fields to ryanbr repo
 - Clear old worker references when creating new Twitch worker
 - Clear RequestedAds set when ads finish

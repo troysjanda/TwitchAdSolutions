@@ -62,6 +62,35 @@ Userscript managers:
 
 *Greasemonkey doesn't work with the scripts.*
 
+## Configuration
+
+The scripts support runtime configuration via `localStorage`. Set values in the browser console and refresh the page.
+
+**`twitchAdSolutions_reloadPlayerAfterAd`** (default: `true`)
+- `true` - full player reload after ads (slower, more reliable)
+- `false` - pause/play after ads (faster, less reliable)
+- Not set - uses default (`true`)
+
+**`twitchAdSolutions_playerType`** (default: `popout`)
+- Changes the player type used for access token requests
+- `popout` - popout player context, tends to receive fewer ads (default)
+- `embed` - embedded player context, used for third-party sites
+- `site` - normal site player, standard Twitch experience (most ads)
+- `autoplay` - autoplay context, lower quality (360p)
+- Not set - uses default (`popout`)
+
+```js
+// Faster post-ad transition
+localStorage.setItem('twitchAdSolutions_reloadPlayerAfterAd', 'false');
+
+// Change player type
+localStorage.setItem('twitchAdSolutions_playerType', 'embed');
+
+// Restore defaults
+localStorage.removeItem('twitchAdSolutions_reloadPlayerAfterAd');
+localStorage.removeItem('twitchAdSolutions_playerType');
+```
+
 ## Issues with the scripts
 
 If the script doesn't work or you're experiencing freezing / buffering issues see [issues.md](issues.md)
