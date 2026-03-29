@@ -50,6 +50,7 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 5.0
 | ReloadPlayerAfterAd | Yes | Yes | N/A | Hardcoded |
 | ForceAccessTokenPlayerType | Yes | Yes | N/A | Hardcoded |
 | PinBackupPlayerType | PR | Yes | Always on | No |
+| HideAdOverlay | PR | Yes | N/A | No |
 | Config logged on load | Yes | Yes | No | No |
 
 ## Debug Logging

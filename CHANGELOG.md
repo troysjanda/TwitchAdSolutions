@@ -10,6 +10,9 @@
 ### Ad Recovery
 - Add segment recovery cache to prevent black screen when all segments are stripped
 
+### Configuration
+- Add hideAdOverlay localStorage option to hide "Blocking ads" banner
+
 ## v42.0.0
 
 ### Ad Detection
