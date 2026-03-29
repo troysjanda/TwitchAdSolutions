@@ -995,7 +995,7 @@ twitch-videoad.js text/javascript
         const lsHideAdOverlay = localStorage.getItem('twitchAdSolutions_hideAdOverlay');
         if (lsHideAdOverlay === 'true') {
             const style = document.createElement('style');
-            style.textContent = '[data-a-target="player-overlay-content-gate"], .ad-banner, [data-a-target="player-ad-countdown"], [class*="ad-overlay"], [data-a-target="player-overlay-click-handler"] { display: none !important; }';
+            style.textContent = '.adblock-overlay { display: none !important; }';
             (document.head || document.documentElement).appendChild(style);
         }
     } catch {}
