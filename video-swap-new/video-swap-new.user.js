@@ -428,6 +428,16 @@
         if (!currentResolution) {
             return textStr;
         }
+        if (!streamInfo.HasCheckedUnknownTags) {
+            streamInfo.HasCheckedUnknownTags = true;
+            const unknownAdTags = textStr.match(/#EXT[^:\n]*(?:ad|cue|scte|sponsor)[^:\n]*/gi);
+            if (unknownAdTags) {
+                const unknown = unknownAdTags.filter(t => !AD_SIGNIFIERS.some(s => t.includes(s)));
+                if (unknown.length > 0) {
+                    console.log('[AD DEBUG] Unknown ad-related tags found: ' + [...new Set(unknown)].join(', '));
+                }
+            }
+        }
         const haveAdTags = hasAdTags(textStr) || (SimulatedAdsDepth > 0 && (!streamInfo.BackupEncodings || !streamInfo.BackupEncodings.includes(url) || SimulatedAdsDepth - 1 > streamInfo.BackupEncodingsPlayerTypeIndex));
         if (streamInfo.BackupEncodings) {
             const streamM3u8Url = streamInfo.Encodings.match(/^https:.*\.m3u8$/m)?.[0];
@@ -533,6 +543,7 @@
                                 BackupEncodings: null,
                                 BackupEncodingsStatus: new Map(),
                                 BackupEncodingsPlayerTypeIndex: -1,
+                                HasCheckedUnknownTags: false,
                                 IsMovingOffBackupEncodings: false,
                                 IsMidroll: false,
                                 IsStrippingAdSegments: false,
