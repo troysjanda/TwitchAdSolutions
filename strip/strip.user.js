@@ -475,6 +475,9 @@
         }
     }
     function onContentLoaded() {
+        if (document.getElementById('seventv-extension')) {
+            console.log('[AD DEBUG] Warning: 7TV extension detected — may cause black screen or buffering issues. If you experience problems, try disabling 7TV.');
+        }
         // Hooks for preserving volume / resolution
         try {
             const keysToCache = [
