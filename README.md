@@ -99,6 +99,14 @@ localStorage.removeItem('twitchAdSolutions_playerType');
 localStorage.removeItem('twitchAdSolutions_hideAdOverlay');
 ```
 
+## Known Extension Conflicts
+
+- **7TV** — may cause black screen / infinite buffering ([#17](https://github.com/ryanbr/TwitchAdSolutions/issues/17))
+- **TwitchNoSub** — handled automatically via workerStringReinsert, but older versions may conflict
+- **TTV-AB** — running both simultaneously may cause duplicate ad blocking and errors. Use one or the other.
+- **Purple AdBlock** — may conflict if both are active. Disable one.
+- **AdGuard Extra** — operates at a different layer, can be used alongside without conflict
+
 ## Issues with the scripts
 
 If the script doesn't work or you're experiencing freezing / buffering issues see [issues.md](issues.md)
