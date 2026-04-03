@@ -16,7 +16,7 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 5.0
 |---|---|---|---|---|
 | Backup player type cycling | Yes | Yes | Yes | Yes |
 | Failed backup type tracking | Yes | Yes | Yes | No |
-| Pinned backup type | PR | Yes (opt-in) | Yes (always on) | No |
+| Pinned backup type | Yes (opt-in) | Yes (opt-in) | Yes (always on) | No |
 | Segment recovery cache | Yes | Yes | Yes | No |
 
 ## Ad Recovery
@@ -26,7 +26,7 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 5.0
 | Ad-end grace period | PR | Yes | Yes | No |
 | Dead backup detection | PR | Yes | No | No |
 | Post-ad resume retry | PR | Yes | Yes | No |
-| Muted state restore | PR | Yes | Yes | No |
+| Muted state restore | Yes | Yes | Yes | No |
 | Player error auto-recovery | No | Yes | Yes | No |
 
 ## Player Stability
@@ -36,7 +36,7 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 5.0
 | Visibility/hidden override | Yes | Yes | Yes | Yes |
 | hasFocus override | Yes | Yes | No | No |
 | Tab focus auto-play | Yes | Yes | Yes | Muted only |
-| Auto-resume on tab return | PR (muted+unmuted) | Yes (muted+unmuted) | Yes | Muted only |
+| Auto-resume on tab return | Yes (muted+unmuted) | Yes (muted+unmuted) | Yes | Muted only |
 | Buffering monitor | Yes | Yes | Yes | Yes |
 | Quality/volume restore | Yes | Yes | Yes | Yes |
 | Playback intent tracking | No | No | Yes | No |
@@ -49,8 +49,8 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 5.0
 |---|---|---|---|---|
 | ReloadPlayerAfterAd | Yes | Yes | N/A | Hardcoded |
 | ForceAccessTokenPlayerType | Yes | Yes | N/A | Hardcoded |
-| PinBackupPlayerType | PR | Yes | Always on | No |
-| HideAdOverlay | PR | Yes | N/A | No |
+| PinBackupPlayerType | Yes | Yes | Always on | No |
+| HideAdOverlay | Yes | Yes | N/A | No |
 | Config logged on load | Yes | Yes | No | No |
 
 ## Debug Logging

@@ -2,7 +2,7 @@ twitch-videoad.js text/javascript
 (function() {
     if ( /(^|\.)twitch\.tv$/.test(document.location.hostname) === false ) { return; }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 30;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 31;// Used to prevent conflicts with outdated versions of the scripts
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log("skipping vaft as there's another script active. ourVersion:" + ourTwitchAdSolutionsVersion + " activeVersion:" + window.twitchAdSolutionsVersion);
         window.twitchAdSolutionsVersion = ourTwitchAdSolutionsVersion;
@@ -808,6 +808,7 @@ twitch-videoad.js text/javascript
         bufferedPosition: 0,
         bufferDuration: 0,
         numSame: 0,
+        fixAttempts: 0,
         lastFixTime: 0,
         isLive: true
     };
@@ -853,15 +854,21 @@ twitch-videoad.js text/javascript
                         ) {
                             playerBufferState.numSame++;
                             if (playerBufferState.numSame == PlayerBufferingSameStateCount) {
-                                console.log('Attempt to fix buffering position:' + playerBufferState.position + ' bufferedPosition:' + playerBufferState.bufferedPosition + ' bufferDuration:' + playerBufferState.bufferDuration);
-                                const isPausePlay = !PlayerBufferingDoPlayerReload;
-                                const isReload = PlayerBufferingDoPlayerReload;
+                                playerBufferState.fixAttempts++;
+                                const escalateToReload = playerBufferState.fixAttempts >= 3;
+                                console.log('Attempt to fix buffering position:' + playerBufferState.position + ' bufferedPosition:' + playerBufferState.bufferedPosition + ' bufferDuration:' + playerBufferState.bufferDuration + (escalateToReload ? ' (escalating to reload)' : ''));
+                                const isPausePlay = escalateToReload ? false : !PlayerBufferingDoPlayerReload;
+                                const isReload = escalateToReload ? true : PlayerBufferingDoPlayerReload;
                                 doTwitchPlayerTask(isPausePlay, isReload);
                                 playerBufferState.lastFixTime = Date.now();
                                 playerBufferState.numSame = 0;
+                                if (escalateToReload) {
+                                    playerBufferState.fixAttempts = 0;
+                                }
                             }
                         } else {
                             playerBufferState.numSame = 0;
+                            playerBufferState.fixAttempts = 0;
                         }
                         playerBufferState.position = position;
                         playerBufferState.bufferedPosition = bufferedPosition;
@@ -900,10 +907,10 @@ twitch-videoad.js text/javascript
         const playerRootDiv = cachedPlayerRootDiv;
         if (playerRootDiv != null) {
             let adBlockDiv = null;
-            adBlockDiv = playerRootDiv.querySelector('.adblock-overlay');
+            adBlockDiv = playerRootDiv.querySelector('.tas-adblock-overlay');
             if (adBlockDiv == null) {
                 adBlockDiv = document.createElement('div');
-                adBlockDiv.className = 'adblock-overlay';
+                adBlockDiv.className = 'tas-adblock-overlay';
                 adBlockDiv.innerHTML = '<div class="player-adblock-notice" style="color: white; background-color: rgba(0, 0, 0, 0.8); position: absolute; top: 0px; left: 0px; padding: 5px;"><p></p></div>';
                 adBlockDiv.style.display = 'none';
                 adBlockDiv.P = adBlockDiv.querySelector('p');
@@ -1051,6 +1058,15 @@ twitch-videoad.js text/javascript
                         if (videos.length > 0 && videos[0].muted) {
                             videos[0].muted = false;
                         }
+                        // Correct live drift after reload
+                        if (videos.length > 0 && videos[0].buffered.length > 0 && videos[0].readyState >= 3) {
+                            const liveEdge = videos[0].buffered.end(videos[0].buffered.length - 1);
+                            const drift = liveEdge - videos[0].currentTime;
+                            if (drift > 2) {
+                                console.log('[AD DEBUG] Post-reload live drift correction: ' + drift.toFixed(1) + 's behind');
+                                videos[0].currentTime = liveEdge - 0.5;
+                            }
+                        }
                     } catch {}
                 }, 3000);
             }
@@ -1149,6 +1165,9 @@ twitch-videoad.js text/javascript
     }
     // Set up visibility overrides and localStorage hooks to preserve player state across reloads
     function onContentLoaded() {
+        if (document.getElementById('seventv-extension')) {
+            console.log('[AD DEBUG] Warning: 7TV extension detected — may cause black screen or buffering issues. If you experience problems, try disabling 7TV.');
+        }
         // This stops Twitch from pausing the player when in another tab and an ad shows.
         // Taken from https://github.com/saucettv/VideoAdBlockForTwitch/blob/cefce9d2b565769c77e3666ac8234c3acfe20d83/chrome/content.js#L30
         try {
@@ -1245,7 +1264,7 @@ twitch-videoad.js text/javascript
         const lsHideAdOverlay = localStorage.getItem('twitchAdSolutions_hideAdOverlay');
         if (lsHideAdOverlay === 'true') {
             const style = document.createElement('style');
-            style.textContent = '.adblock-overlay { display: none !important; }';
+            style.textContent = '.tas-adblock-overlay { display: none !important; }';
             (document.head || document.documentElement).appendChild(style);
         }
     } catch {}
