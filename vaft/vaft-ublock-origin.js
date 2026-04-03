@@ -18,6 +18,7 @@ twitch-videoad.js text/javascript
             'embed',//Source
             'site',//Source
             'popout',//Source
+            'mobile_web',//Mobile
             'autoplay',//360p
             //'picture-by-picture-CACHED'//360p (-CACHED is an internal suffix and is removed)
         ];
