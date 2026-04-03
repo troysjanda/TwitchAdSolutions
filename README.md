@@ -79,6 +79,10 @@ The scripts support runtime configuration via `localStorage`. Set values in the 
 - `autoplay` - autoplay context, lower quality (360p)
 - Not set - uses default (`popout`)
 
+**`twitchAdSolutions_hideAdOverlay`** (default: not set)
+- `true` - hide the "Blocking ads" banner overlay on the video player
+- Not set - banner is visible during ad blocking (default)
+
 ```js
 // Faster post-ad transition
 localStorage.setItem('twitchAdSolutions_reloadPlayerAfterAd', 'false');
@@ -86,9 +90,13 @@ localStorage.setItem('twitchAdSolutions_reloadPlayerAfterAd', 'false');
 // Change player type
 localStorage.setItem('twitchAdSolutions_playerType', 'embed');
 
+// Hide ad blocking banner
+localStorage.setItem('twitchAdSolutions_hideAdOverlay', 'true');
+
 // Restore defaults
 localStorage.removeItem('twitchAdSolutions_reloadPlayerAfterAd');
 localStorage.removeItem('twitchAdSolutions_playerType');
+localStorage.removeItem('twitchAdSolutions_hideAdOverlay');
 ```
 
 ## Issues with the scripts
