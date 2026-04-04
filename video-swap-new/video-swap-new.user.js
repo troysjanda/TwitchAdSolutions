@@ -792,6 +792,10 @@
                         }
                     }
                 }
+                if (url.includes('edge.ads.twitch.tv')) {
+                    const csaiType = url.includes('bp=midroll') ? 'midroll' : url.includes('bp=preroll') ? 'preroll' : 'unknown';
+                    console.log('[AD DEBUG] CSAI ad request detected — type: ' + csaiType + ' (client-side ad insertion, not blockable via m3u8)');
+                }
             }
             return realFetch.apply(this, arguments);
         };
