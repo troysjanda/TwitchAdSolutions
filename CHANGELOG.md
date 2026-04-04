@@ -1,3 +1,9 @@
+## Unreleased
+
+### Debug Logging
+- Detect and log CSAI (client-side ad insertion) requests via fetch, XHR, and DOM injection
+- Monitor for non-Twitch video elements to identify ad delivery paths
+
 ## v45.0.0
 
 ### Player Stability
@@ -5,10 +11,6 @@
 - Add buffer fix escalation (3 consecutive failures → full player reload)
 - Add readyState guard to prevent seeking during active rebuffers
 - Detect 7TV extension and log compatibility warning
-
-### Debug Logging
-- Detect and log CSAI (client-side ad insertion) requests via fetch, XHR, and DOM injection
-- Monitor for non-Twitch video elements to identify ad delivery paths
 
 ### Other
 - Add known extension conflicts section to README
