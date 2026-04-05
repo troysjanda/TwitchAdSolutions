@@ -824,7 +824,9 @@
             });
         }
         playerBufferState.isLive = isLive;
-        setTimeout(monitorPlayerBuffering, PlayerBufferingDelay);
+        // Visibility-aware backoff: poll 5x slower when tab is hidden to reduce background CPU
+        const nextDelay = (typeof document !== 'undefined' && document.hidden) ? PlayerBufferingDelay * 5 : PlayerBufferingDelay;
+        setTimeout(monitorPlayerBuffering, nextDelay);
     }
     // Auto-recover from player errors (#2000, #3000, #4000) by reloading the page
     const PLAYER_ERROR_MAX_RETRIES = 3;

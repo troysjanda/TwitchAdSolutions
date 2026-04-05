@@ -887,8 +887,12 @@ twitch-videoad.js text/javascript
                             playerBufferState.numSame++;
                             if (playerBufferState.numSame == PlayerBufferingSameStateCount) {
                                 playerBufferState.fixAttempts++;
-                                const escalateToReload = playerBufferState.fixAttempts >= 3;
-                                console.log('Attempt to fix buffering position:' + playerBufferState.position + ' bufferedPosition:' + playerBufferState.bufferedPosition + ' bufferDuration:' + playerBufferState.bufferDuration + (escalateToReload ? ' (escalating to reload)' : ''));
+                                // Cap: at most ONE reload per recovery window. After reloading once,
+                                // stay on pause/play until playback recovers. Prevents reload cascades.
+                                const wouldEscalate = playerBufferState.fixAttempts >= 3;
+                                const escalateToReload = wouldEscalate && !playerBufferState.recoveryReloadUsed;
+                                const reloadCapNote = wouldEscalate && !escalateToReload ? ' (reload cap reached, pause/play only)' : (escalateToReload ? ' (escalating to reload)' : '');
+                                console.log('Attempt to fix buffering position:' + playerBufferState.position + ' bufferedPosition:' + playerBufferState.bufferedPosition + ' bufferDuration:' + playerBufferState.bufferDuration + reloadCapNote);
                                 const isPausePlay = escalateToReload ? false : !PlayerBufferingDoPlayerReload;
                                 const isReload = escalateToReload ? true : PlayerBufferingDoPlayerReload;
                                 doTwitchPlayerTask(isPausePlay, isReload);
@@ -896,11 +900,13 @@ twitch-videoad.js text/javascript
                                 playerBufferState.numSame = 0;
                                 if (escalateToReload) {
                                     playerBufferState.fixAttempts = 0;
+                                    playerBufferState.recoveryReloadUsed = true;
                                 }
                             }
                         } else {
                             playerBufferState.numSame = 0;
                             playerBufferState.fixAttempts = 0;
+                            playerBufferState.recoveryReloadUsed = false;
                         }
                         playerBufferState.position = position;
                         playerBufferState.bufferedPosition = bufferedPosition;
@@ -930,7 +936,9 @@ twitch-videoad.js text/javascript
             });
         }
         playerBufferState.isLive = isLive;
-        setTimeout(monitorPlayerBuffering, PlayerBufferingDelay);
+        // Visibility-aware backoff: poll 5x slower when tab is hidden to reduce background CPU
+        const nextDelay = (typeof document !== 'undefined' && document.hidden) ? PlayerBufferingDelay * 5 : PlayerBufferingDelay;
+        setTimeout(monitorPlayerBuffering, nextDelay);
     }
     function updateAdblockBanner(data) {
         if (!cachedPlayerRootDiv || !cachedPlayerRootDiv.isConnected) {
