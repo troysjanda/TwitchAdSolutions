@@ -852,7 +852,7 @@
                 const state = playerForMonitoringBuffering.state;
                 if (!player.core) {
                     playerForMonitoringBuffering = null;
-                } else if (state.props?.content?.type === 'live' && !player.isPaused() && !player.getHTMLVideoElement()?.ended && playerBufferState.lastFixTime <= Date.now() - PlayerBufferingMinRepeatDelay && !isActivelyStrippingAds) {
+                } else if (state.props?.content?.type === 'live' && !player.isPaused() && !player.getHTMLVideoElement()?.ended && playerBufferState.lastFixTime <= Date.now() - PlayerBufferingMinRepeatDelay && !isActivelyStrippingAds && (!playerBufferState.lastReloadAt || Date.now() - playerBufferState.lastReloadAt >= 15000)) {
                     const m3u8Url = player.core?.state?.path;
                     if (m3u8Url) {
                       const lastSlash = m3u8Url.lastIndexOf('/');
@@ -1067,6 +1067,7 @@
                     localStorage.setItem(lsKeyQuality, JSON.stringify({default:player.core.state.quality.group}));
                 }
             } catch {}
+            playerBufferState.lastReloadAt = Date.now();
             console.log('Reloading Twitch player');
             playerState.setSrc({ isNewMediaPlayerInstance: true, refreshAccessToken: true });
             postTwitchWorkerMessage('TriggeredPlayerReload');
