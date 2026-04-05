@@ -83,6 +83,21 @@ The scripts support runtime configuration via `localStorage`. Set values in the 
 - `true` - hide the "Blocking ads" banner overlay on the video player
 - Not set - banner is visible during ad blocking (default)
 
+**`twitchAdSolutions_pinBackupPlayerType`** (default: `false`)
+- `true` - remember which backup player type worked and try it first on next ad break (saves backup search time)
+- `false` - always iterate through backup types fresh (default)
+- ⚠ **Quality caveat**: if the pinned type is `autoplay`, backups during ad breaks stay at 360p even when a source-quality backup would have worked. Only enable if you prefer consistent ad-break experience over backup quality.
+
+**`twitchAdSolutions_reloadCooldownSeconds`** (default: `30`)
+- Minimum seconds between player reloads after ad breaks
+- Prevents CSAI (client-side ad insertion) cascades where a reload triggers Twitch to serve another ad
+- Set to `0` to disable cooldown
+
+**`twitchAdSolutions_disableReloadCap`** (default: not set)
+- `true` - buffer monitor reloads unlimited times (pre-v47 behavior, risk of reload loops)
+- Not set - buffer monitor reloads at most once per recovery window (default)
+- Only enable if you're seeing genuinely stuck playback that a single reload doesn't fix
+
 ```js
 // Faster post-ad transition
 localStorage.setItem('twitchAdSolutions_reloadPlayerAfterAd', 'false');
@@ -97,6 +112,9 @@ localStorage.setItem('twitchAdSolutions_hideAdOverlay', 'true');
 localStorage.removeItem('twitchAdSolutions_reloadPlayerAfterAd');
 localStorage.removeItem('twitchAdSolutions_playerType');
 localStorage.removeItem('twitchAdSolutions_hideAdOverlay');
+localStorage.removeItem('twitchAdSolutions_pinBackupPlayerType');
+localStorage.removeItem('twitchAdSolutions_reloadCooldownSeconds');
+localStorage.removeItem('twitchAdSolutions_disableReloadCap');
 ```
 
 ## Known Extension Conflicts
