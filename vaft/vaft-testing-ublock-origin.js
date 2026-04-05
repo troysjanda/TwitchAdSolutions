@@ -664,7 +664,11 @@ twitch-videoad.js text/javascript
                                         break;
                                     }
                                     if (hasAdTags(m3u8Text)) {
-                                        console.log('[AD DEBUG] Backup stream (' + playerType + ') also has ads');
+                                        if (!streamInfo.LoggedBackupAdsByType) streamInfo.LoggedBackupAdsByType = new Set();
+                                        if (!streamInfo.LoggedBackupAdsByType.has(playerType)) {
+                                            streamInfo.LoggedBackupAdsByType.add(playerType);
+                                            console.log('[AD DEBUG] Backup stream (' + playerType + ') also has ads');
+                                        }
                                     }
                                     if (isFullyCachedPlayerType) {
                                         break;
@@ -726,6 +730,7 @@ twitch-videoad.js text/javascript
                 streamInfo.ActiveBackupPlayerType = null;
                 streamInfo.RequestedAds.clear();
                 streamInfo.FailedBackupPlayerTypes.clear();
+                if (streamInfo.LoggedBackupAdsByType) streamInfo.LoggedBackupAdsByType.clear();
                 streamInfo.CleanPlaylistCount = 0;
                 const tooSoonSinceLastReload = streamInfo.LastPlayerReload && (Date.now() - streamInfo.LastPlayerReload) < (ReloadCooldownSeconds * 1000);
                 const shouldReload = streamInfo.IsUsingModifiedM3U8 || (ReloadPlayerAfterAd && !tooSoonSinceLastReload);
