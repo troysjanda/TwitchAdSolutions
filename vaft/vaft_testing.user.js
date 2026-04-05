@@ -629,13 +629,18 @@
             streamInfo.NumStrippedAdSegments = 0;
             streamInfo.ActiveBackupPlayerType = null;
             streamInfo.RequestedAds.clear();
-            if (streamInfo.IsUsingModifiedM3U8 || ReloadPlayerAfterAd) {
+            const tooSoonSinceLastReload = streamInfo.LastPlayerReload && (Date.now() - streamInfo.LastPlayerReload) < 30000;
+            const shouldReload = streamInfo.IsUsingModifiedM3U8 || (ReloadPlayerAfterAd && !tooSoonSinceLastReload);
+            if (shouldReload) {
                 streamInfo.IsUsingModifiedM3U8 = false;
                 streamInfo.LastPlayerReload = Date.now();
                 postMessage({
                     key: 'ReloadPlayer'
                 });
             } else {
+                if (tooSoonSinceLastReload) {
+                    console.log('[AD DEBUG] Skipping reload — last reload was ' + ((Date.now() - streamInfo.LastPlayerReload) / 1000).toFixed(0) + 's ago (CSAI cascade prevention)');
+                }
                 postMessage({
                     key: 'PauseResumePlayer'
                 });
