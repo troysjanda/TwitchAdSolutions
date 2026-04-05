@@ -629,6 +629,7 @@
             }
         } else if (streamInfo.IsShowingAd) {
             console.log('Finished blocking ads — stripped ' + streamInfo.NumStrippedAdSegments + ' ad segments');
+            const hadStrippedSegments = streamInfo.NumStrippedAdSegments > 0;
             streamInfo.IsShowingAd = false;
             streamInfo.IsStrippingAdSegments = false;
             streamInfo.NumStrippedAdSegments = 0;
@@ -636,7 +637,8 @@
             streamInfo.RequestedAds.clear();
             if (streamInfo.LoggedBackupAdsByType) streamInfo.LoggedBackupAdsByType.clear();
             const tooSoonSinceLastReload = streamInfo.LastPlayerReload && (Date.now() - streamInfo.LastPlayerReload) < (ReloadCooldownSeconds * 1000);
-            const shouldReload = streamInfo.IsUsingModifiedM3U8 || (ReloadPlayerAfterAd && !tooSoonSinceLastReload);
+            // Reload if: backup was used (need to swap back), OR we stripped real ad segments (need to clean player state), OR default reload is enabled and not in cooldown
+            const shouldReload = streamInfo.IsUsingModifiedM3U8 || hadStrippedSegments || (ReloadPlayerAfterAd && !tooSoonSinceLastReload);
             if (shouldReload) {
                 streamInfo.IsUsingModifiedM3U8 = false;
                 streamInfo.LastPlayerReload = Date.now();

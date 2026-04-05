@@ -315,7 +315,7 @@ twitch-videoad.js text/javascript
                                         IsStrippingAdSegments: false,
                                         NumStrippedAdSegments: 0,
                                         RecoverySegments: [],
-                                        FailedBackupPlayerTypes: new Set(),
+                                        FailedBackupPlayerTypes: new Map(),// Map<playerType, timestamp> — failures expire after 15s for retry
                                         CleanPlaylistCount: 0
                                     };
                                     const lines = encodingsM3u8.split(/\r?\n/);
@@ -616,7 +616,8 @@ twitch-videoad.js text/javascript
             for (let playerTypeIndex = startIndex; !backupM3u8 && playerTypeIndex < playerTypesToTry.length; playerTypeIndex++) {
                 const playerType = playerTypesToTry[playerTypeIndex];
                 const realPlayerType = playerType.replace('-CACHED', '');
-                if (streamInfo.FailedBackupPlayerTypes.has(realPlayerType)) {
+                const failedAt = streamInfo.FailedBackupPlayerTypes.get(realPlayerType);
+                if (failedAt && (Date.now() - failedAt) < 15000) {
                     continue;
                 }
                 const isFullyCachedPlayerType = playerType != realPlayerType;
@@ -643,11 +644,11 @@ twitch-videoad.js text/javascript
                                 }
                             } else {
                                 console.log('[AD DEBUG] Access token HTTP ' + accessTokenResponse.status + ' for ' + realPlayerType);
-                                streamInfo.FailedBackupPlayerTypes.add(realPlayerType);
+                                streamInfo.FailedBackupPlayerTypes.set(realPlayerType, Date.now());
                             }
                         } catch (err) {
                             console.log('[AD DEBUG] Access token failed for ' + realPlayerType + ': ' + err.message);
-                            streamInfo.FailedBackupPlayerTypes.add(realPlayerType);
+                            streamInfo.FailedBackupPlayerTypes.set(realPlayerType, Date.now());
                         }
                     }
                     if (encodingsM3u8) {
@@ -726,6 +727,7 @@ twitch-videoad.js text/javascript
                     console.log('[AD DEBUG] Backup stream has no live segments — forcing immediate reload');
                 }
                 console.log('Finished blocking ads — stripped ' + streamInfo.NumStrippedAdSegments + ' ad segments');
+                const hadStrippedSegments = streamInfo.NumStrippedAdSegments > 0;
                 streamInfo.IsShowingAd = false;
                 streamInfo.IsStrippingAdSegments = false;
                 streamInfo.NumStrippedAdSegments = 0;
@@ -735,7 +737,8 @@ twitch-videoad.js text/javascript
                 if (streamInfo.LoggedBackupAdsByType) streamInfo.LoggedBackupAdsByType.clear();
                 streamInfo.CleanPlaylistCount = 0;
                 const tooSoonSinceLastReload = streamInfo.LastPlayerReload && (Date.now() - streamInfo.LastPlayerReload) < (ReloadCooldownSeconds * 1000);
-                const shouldReload = streamInfo.IsUsingModifiedM3U8 || (ReloadPlayerAfterAd && !tooSoonSinceLastReload);
+                // Reload if: backup was used (need to swap back), OR we stripped real ad segments (need to clean player state), OR default reload is enabled and not in cooldown
+                const shouldReload = streamInfo.IsUsingModifiedM3U8 || hadStrippedSegments || (ReloadPlayerAfterAd && !tooSoonSinceLastReload);
                 if (shouldReload) {
                     streamInfo.IsUsingModifiedM3U8 = false;
                     streamInfo.LastPlayerReload = Date.now();
