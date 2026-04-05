@@ -824,8 +824,16 @@
             });
         }
         playerBufferState.isLive = isLive;
-        // Visibility-aware backoff: poll 5x slower when tab is hidden to reduce background CPU
-        const nextDelay = (typeof document !== 'undefined' && document.hidden) ? PlayerBufferingDelay * 5 : PlayerBufferingDelay;
+        // Force immediate tick when tab becomes visible so stalls are caught fast on return
+        if (typeof document !== 'undefined' && !monitorPlayerBuffering.visibilityHooked) {
+            monitorPlayerBuffering.visibilityHooked = true;
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) setTimeout(monitorPlayerBuffering, 100);
+            });
+        }
+        // Visibility-aware backoff: poll 5x slower when tab is hidden (but NOT during PiP — user is still watching)
+        const shouldThrottle = typeof document !== 'undefined' && document.hidden && !document.pictureInPictureElement;
+        const nextDelay = shouldThrottle ? PlayerBufferingDelay * 5 : PlayerBufferingDelay;
         setTimeout(monitorPlayerBuffering, nextDelay);
     }
     // Auto-recover from player errors (#2000, #3000, #4000) by reloading the page
