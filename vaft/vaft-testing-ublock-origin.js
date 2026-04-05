@@ -737,8 +737,8 @@ twitch-videoad.js text/javascript
                 if (streamInfo.LoggedBackupAdsByType) streamInfo.LoggedBackupAdsByType.clear();
                 streamInfo.CleanPlaylistCount = 0;
                 const tooSoonSinceLastReload = streamInfo.LastPlayerReload && (Date.now() - streamInfo.LastPlayerReload) < (ReloadCooldownSeconds * 1000);
-                // Reload if: backup was used (need to swap back), OR we stripped real ad segments (need to clean player state), OR default reload is enabled and not in cooldown
-                const shouldReload = streamInfo.IsUsingModifiedM3U8 || hadStrippedSegments || (ReloadPlayerAfterAd && !tooSoonSinceLastReload);
+                // Reload if backup was used (need to swap back). Otherwise, respect ReloadPlayerAfterAd — stripped segments bypass cooldown but not the user's preference.
+                const shouldReload = streamInfo.IsUsingModifiedM3U8 || (ReloadPlayerAfterAd && (hadStrippedSegments || !tooSoonSinceLastReload));
                 if (shouldReload) {
                     streamInfo.IsUsingModifiedM3U8 = false;
                     streamInfo.LastPlayerReload = Date.now();
