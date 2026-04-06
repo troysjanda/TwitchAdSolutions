@@ -1,5 +1,21 @@
 ## Unreleased
 
+## v48.0.0
+
+### Player Stability
+- Add one-reload-per-recovery cap to buffer monitor (prevents infinite reload loops during persistent stalls)
+- Add 15s reload grace period after player reload (buffer monitor waits for Twitch's player to finish initializing before attempting fixes)
+- Add visibility-aware poll backoff (3× slower polling when tab is hidden, PiP-aware, immediate tick on tab return)
+- Reset buffer monitor state on channel change (fixAttempts, recoveryReloadUsed)
+
+### Ad Recovery
+- Force reload after ad break when real segments were stripped, even within cooldown window (ensures clean player state)
+- FailedBackupPlayerTypes now expire after 15s allowing retry on transient failures (was permanent per ad break)
+
+### Configuration
+- Add twitchAdSolutions_disableReloadCap localStorage option (revert to unlimited reloads)
+- Document twitchAdSolutions_pinBackupPlayerType quality caveat in README
+
 ## v47.0.0
 
 ### Player Stability
