@@ -323,7 +323,10 @@ twitch-videoad.js text/javascript
                                         NumStrippedAdSegments: 0,
                                         RecoverySegments: [],
                                         FailedBackupPlayerTypes: new Map(),// Map<playerType, timestamp> — failures expire after 15s for retry
-                                        CleanPlaylistCount: 0
+                                        CleanPlaylistCount: 0,
+                                        HasLoggedAdAttributes: false,
+                                        LoggedBackupAdsByType: null,
+                                        RecoveryStartSeq: undefined
                                     };
                                     const lines = encodingsM3u8.split(/\r?\n/);
                                     for (let i = 0; i < lines.length - 1; i++) {
@@ -443,7 +446,8 @@ twitch-videoad.js text/javascript
             // Remove tracking urls which appear in the overlay UI
             lines[i] = line
                 .replaceAll(/(X-TV-TWITCH-AD(?:-[A-Z]+)*-URLS?=")[^"]*(")/g, `$1${newAdUrl}$2`);
-            if (i < lines.length - 1 && line.startsWith('#EXTINF') && (!line.includes(',live') || stripAllSegments || AllSegmentsAreAdSegments || inCueOut)) {
+            const isLiveSegment = line.includes(',live');
+            if (i < lines.length - 1 && line.startsWith('#EXTINF') && (!isLiveSegment || stripAllSegments || AllSegmentsAreAdSegments || inCueOut)) {
                 const segmentUrl = lines[i + 1];
                 if (!AdSegmentCache.has(segmentUrl)) {
                     streamInfo.NumStrippedAdSegments++;
@@ -455,7 +459,7 @@ twitch-videoad.js text/javascript
                 AdSegmentCache.set(lines[i + 1], Date.now());
                 hasStrippedAdSegments = true;
                 streamInfo.NumStrippedAdSegments++;
-            } else if (i < lines.length - 1 && line.startsWith('#EXTINF') && line.includes(',live')) {
+            } else if (i < lines.length - 1 && line.startsWith('#EXTINF') && isLiveSegment) {
                 liveSegments.push({ extinf: line, url: lines[i + 1] });
             }
             if (AdSignifiers.some((s) => line.includes(s))) {

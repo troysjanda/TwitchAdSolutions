@@ -306,7 +306,9 @@
                                         ActiveBackupPlayerType: null,
                                         IsMidroll: false,
                                         IsStrippingAdSegments: false,
-                                        NumStrippedAdSegments: 0
+                                        NumStrippedAdSegments: 0,
+                                        HasCheckedUnknownTags: false,
+                                        HasLoggedAdAttributes: false
                                     };
                                     const lines = encodingsM3u8.split(/\r?\n/);
                                     for (let i = 0; i < lines.length - 1; i++) {
@@ -413,7 +415,8 @@
             // Remove tracking urls which appear in the overlay UI
             lines[i] = line
                 .replaceAll(/(X-TV-TWITCH-AD(?:-[A-Z]+)*-URLS?=")[^"]*(")/g, `$1${newAdUrl}$2`);
-            if (i < lines.length - 1 && line.startsWith('#EXTINF') && (!line.includes(',live') || stripAllSegments || AllSegmentsAreAdSegments || inCueOut)) {
+            const isLiveSegment = line.includes(',live');
+            if (i < lines.length - 1 && line.startsWith('#EXTINF') && (!isLiveSegment || stripAllSegments || AllSegmentsAreAdSegments || inCueOut)) {
                 const segmentUrl = lines[i + 1];
                 if (!AdSegmentCache.has(segmentUrl)) {
                     streamInfo.NumStrippedAdSegments++;
