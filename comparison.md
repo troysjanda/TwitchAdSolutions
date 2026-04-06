@@ -43,10 +43,11 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 5.0
 | One-reload-per-recovery cap | Yes | Yes | Yes (guarded) | No |
 | Reload grace period (15s) | Yes | Yes | No | No |
 | Visibility-aware poll backoff | Yes (3×) | Yes (3×) | Yes | No |
-| Smooth drift correction | PR | Yes (1.1×) | No | No |
+| Smooth drift correction | Yes (1.1×) | Yes (1.1×) | No | No |
 | Failed backup type retry (15s) | Yes | Yes | No | No |
 | Quality/volume restore | Yes | Yes | Yes | Yes |
-| Playback intent tracking | No | No | Yes | No |
+| User pause intent tracking | Yes | Yes | Yes | No |
+| Stale player ref invalidation | Yes | Yes | No | No |
 | Stale event filtering | No | No | Yes | No |
 | Worker crash recovery | No | No | Yes | No |
 
@@ -60,7 +61,7 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 5.0
 | HideAdOverlay | Yes | Yes | N/A | No |
 | ReloadCooldownSeconds | Yes | Yes | N/A | No |
 | DisableReloadCap | Yes | Yes | N/A | No |
-| DriftCorrectionRate | PR | Yes | N/A | No |
+| DriftCorrectionRate | Yes | Yes | N/A | No |
 | Config logged on load | Yes | Yes | No | No |
 
 ## Debug Logging

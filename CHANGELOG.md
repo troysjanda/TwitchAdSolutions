@@ -1,5 +1,27 @@
 ## Unreleased
 
+## v49.0.0
+
+### Bug Fixes
+- Invalidate cached player reference on reload — root cause fix for black screen after ad-end reloads (stale ref read 242s buffer at position 0, causing false stall detection on wrong player instance)
+- Fix stale 30s drift correction timeout not cleared when new correction starts (premature playbackRate reset on back-to-back reloads)
+
+### Player Stability
+- Add user pause intent tracking via video element events (distinguishes user-initiated pause from script/system pause, won't auto-resume user pauses)
+- Smooth drift correction via gradual 1.1× playback rate instead of jarring instant seek
+- Prevent duplicate monitorPlayerBuffering scheduling on tab return (pendingTick guard)
+
+### Performance
+- Cache isLiveSegment result per line in stripAdSegments hot loop (avoids repeated string scan)
+- Initialize all streamInfo properties upfront (stabilizes V8 hidden class)
+
+### Configuration
+- Add twitchAdSolutions_driftCorrectionRate localStorage option (default 1.1, 0 to disable)
+
+### Debug Logging
+- Remove 'React root node not found' log (timing artifact on page load, not actionable)
+- Add log when user pause intent is respected
+
 ## v48.0.0
 
 ### Player Stability
