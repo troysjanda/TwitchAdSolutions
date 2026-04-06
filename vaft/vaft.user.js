@@ -222,6 +222,11 @@
                 this.addEventListener('message', (e) => {
                     if (e.data.key == 'UpdateAdBlockBanner') {
                         updateAdblockBanner(e.data);
+                        // Track when ads first appear (proxy for backup stream switch)
+                        if (e.data.hasAds && !playerBufferState.inAdBreak) {
+                            playerBufferState.lastBackupSwitchAt = Date.now();
+                        }
+                        playerBufferState.inAdBreak = !!e.data.hasAds;
                         // Clear drift catch-up when ads start — don't run 1.1x during ad handling
                         if (e.data.hasAds && (driftCatchUpInterval || driftCatchUpTimeout)) {
                             if (driftCatchUpInterval) { clearInterval(driftCatchUpInterval); driftCatchUpInterval = null; }
@@ -764,7 +769,7 @@
             // Reload if backup was used AND segments were stripped. Otherwise, respect ReloadPlayerAfterAd + cooldown.
             const shouldReload = streamInfo.IsUsingModifiedM3U8 || (ReloadPlayerAfterAd && (hadStrippedSegments || !tooSoonSinceLastReload));
             if (shouldReload) {
-                streamInfo.ReloadTimestamps.push(Date.now());
+                streamInfo.ReloadTimestamps.push(Date.now());// Only track actual reloads, not skipped ones
                 streamInfo.IsUsingModifiedM3U8 = false;
                 streamInfo.LastPlayerReload = Date.now();
                 postMessage({
@@ -884,7 +889,7 @@
                 const state = playerForMonitoringBuffering.state;
                 if (!player.core) {
                     playerForMonitoringBuffering = null;
-                } else if (state.props?.content?.type === 'live' && !player.isPaused() && !player.getHTMLVideoElement()?.ended && playerBufferState.lastFixTime <= Date.now() - PlayerBufferingMinRepeatDelay && !isActivelyStrippingAds && (!playerBufferState.lastReloadAt || Date.now() - playerBufferState.lastReloadAt >= 15000)) {
+                } else if (state.props?.content?.type === 'live' && !player.isPaused() && !player.getHTMLVideoElement()?.ended && playerBufferState.lastFixTime <= Date.now() - PlayerBufferingMinRepeatDelay && !isActivelyStrippingAds && (!playerBufferState.lastReloadAt || Date.now() - playerBufferState.lastReloadAt >= 15000) && (!playerBufferState.lastBackupSwitchAt || Date.now() - playerBufferState.lastBackupSwitchAt >= 10000)) {
                     const m3u8Url = player.core?.state?.path;
                     if (m3u8Url) {
                       const lastSlash = m3u8Url.lastIndexOf('/');
