@@ -40,6 +40,10 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 5.0
 | Buffering monitor | Yes | Yes | Yes | Yes |
 | Stuck-pause auto-recovery | Yes | Yes | No | No |
 | CSAI cascade reload cooldown | Yes | Yes | No | No |
+| CSAI-only skip reload | Yes | Yes | No | No |
+| Ad-end grace period | Yes | Yes | No | No |
+| Auto-escalate cooldown | Yes | Yes | No | No |
+| Backup switch grace (10s) | Yes | Yes | No | No |
 | One-reload-per-recovery cap | Yes | Yes | Yes (guarded) | No |
 | Reload grace period (15s) | Yes | Yes | No | No |
 | Visibility-aware poll backoff | Yes (3×) | Yes (3×) | Yes | No |

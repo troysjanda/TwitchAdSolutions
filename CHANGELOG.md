@@ -1,5 +1,16 @@
 ## Unreleased
 
+## v50.0.0
+
+### CSAI Cascade Fix
+- Skip reload for CSAI-only ad breaks where 0 segments were stripped — eliminates the endless reload cascade on ad-heavy channels (no reload = no fresh token = Twitch can't insert another ad)
+
+### Ad Recovery
+- Add ad-end grace period: require 2+ consecutive clean playlists before declaring ads done (prevents premature ad-end detection from m3u8 metadata flicker)
+- Auto-escalate reload cooldown: if 3+ reloads in 5 minutes, triple the cooldown (30s → 90s) to reduce pressure on heavy-ad channels
+- Add 10s backup switch grace period (buffer monitor waits for backup stream to stabilize before attempting fixes)
+- Only track actual reloads toward auto-escalation threshold (skipped reloads don't inflate count)
+
 ## v49.0.0
 
 ### Bug Fixes
