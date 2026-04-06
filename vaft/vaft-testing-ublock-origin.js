@@ -885,6 +885,7 @@ twitch-videoad.js text/javascript
                               playerBufferState.fixAttempts = 0;
                               playerBufferState.recoveryReloadUsed = false;
                               playerBufferState.userPauseIntent = false;
+                        playerBufferState.loggedPauseIntent = false;
                               //console.log('Channel changed to ' + channelName);
                           }
                       }
@@ -959,6 +960,7 @@ twitch-videoad.js text/javascript
                     });
                     video.addEventListener('play', () => {
                         playerBufferState.userPauseIntent = false;
+                        playerBufferState.loggedPauseIntent = false;
                     });
                 }
             }
@@ -1085,6 +1087,10 @@ twitch-videoad.js text/javascript
         if (isPausePlay && wasPaused) {
             // User deliberately paused — respect their intent, don't auto-resume
             if (playerBufferState.userPauseIntent) {
+                if (!playerBufferState.loggedPauseIntent) {
+                    playerBufferState.loggedPauseIntent = true;
+                    console.log('[AD DEBUG] Respecting user pause intent — skipping auto-resume');
+                }
                 return;
             }
             // If WE recently called pause/play and player is still paused, retry play (stuck from autoplay policy or ad-state interference)
@@ -1125,6 +1131,7 @@ twitch-videoad.js text/javascript
             } catch {}
             playerBufferState.lastReloadAt = Date.now();
             playerBufferState.userPauseIntent = false;
+            playerBufferState.loggedPauseIntent = false;
             playerForMonitoringBuffering = null;// Force re-acquire player ref after reload — old ref reads stale buffer state
             console.log('Reloading Twitch player');
             playerState.setSrc({ isNewMediaPlayerInstance: true, refreshAccessToken: true });
