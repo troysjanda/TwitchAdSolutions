@@ -211,6 +211,12 @@ twitch-videoad.js text/javascript
                 this.addEventListener('message', (e) => {
                     if (e.data.key == 'UpdateAdBlockBanner') {
                         updateAdblockBanner(e.data);
+                        // Clear drift catch-up when ads start — don't run 1.1x during ad handling
+                        if (e.data.hasAds && driftCatchUpInterval) {
+                            clearInterval(driftCatchUpInterval);
+                            driftCatchUpInterval = null;
+                            try { document.querySelector('video').playbackRate = 1.0; } catch {}
+                        }
                     } else if (e.data.key == 'PauseResumePlayer') {
                         doTwitchPlayerTask(true, false);
                     } else if (e.data.key == 'ReloadPlayer') {
@@ -1144,6 +1150,7 @@ twitch-videoad.js text/javascript
                                             const remaining = vid.buffered.end(vid.buffered.length - 1) - vid.currentTime;
                                             if (remaining <= 1) {
                                                 vid.playbackRate = 1.0;
+                                                console.log('[AD DEBUG] Drift correction complete — resumed normal playback speed');
                                                 clearInterval(driftCatchUpInterval);
                                                 driftCatchUpInterval = null;
                                             }
