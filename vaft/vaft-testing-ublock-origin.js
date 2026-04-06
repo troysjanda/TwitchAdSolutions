@@ -937,6 +937,17 @@ twitch-videoad.js text/javascript
                                 const escalateToReload = wouldEscalate && (DisableReloadCap || !playerBufferState.recoveryReloadUsed);
                                 const reloadCapNote = wouldEscalate && !escalateToReload ? ' (reload cap reached, pause/play only — set twitchAdSolutions_disableReloadCap=true to bypass)' : (escalateToReload ? ' (escalating to reload)' : '');
                                 console.log('Attempt to fix buffering position:' + playerBufferState.position + ' bufferedPosition:' + playerBufferState.bufferedPosition + ' bufferDuration:' + playerBufferState.bufferDuration + reloadCapNote);
+                                // Seek past buffer gap instead of stalling
+                                const video = player.getHTMLVideoElement?.();
+                                if (video && video.buffered.length > 1) {
+                                    for (let bi = 0; bi < video.buffered.length; bi++) {
+                                        if (video.buffered.start(bi) > video.currentTime + 0.5) {
+                                            console.log('[AD DEBUG] Seeking past ' + (video.buffered.start(bi) - video.currentTime).toFixed(1) + 's buffer gap');
+                                            video.currentTime = video.buffered.start(bi);
+                                            break;
+                                        }
+                                    }
+                                }
                                 const isPausePlay = escalateToReload ? false : !PlayerBufferingDoPlayerReload;
                                 const isReload = escalateToReload ? true : PlayerBufferingDoPlayerReload;
                                 doTwitchPlayerTask(isPausePlay, isReload);
