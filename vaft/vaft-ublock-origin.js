@@ -328,7 +328,6 @@ twitch-videoad.js text/javascript
                                         NumStrippedAdSegments: 0,
                                         RecoverySegments: [],
                                         FailedBackupPlayerTypes: new Map(),// Map<playerType, timestamp> — failures expire after 15s for retry
-                                        HasCheckedUnknownTags: false,
                                         HasLoggedAdAttributes: false,
                                         LoggedBackupAdsByType: null,
                                         RecoveryStartSeq: undefined,
