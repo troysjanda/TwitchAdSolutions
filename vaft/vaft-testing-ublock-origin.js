@@ -743,7 +743,7 @@ twitch-videoad.js text/javascript
                 if (!hasLiveSegments) {
                     console.log('[AD DEBUG] Backup stream has no live segments — forcing immediate reload');
                 }
-                console.log('Finished blocking ads — stripped ' + streamInfo.NumStrippedAdSegments + ' ad segments');
+                console.log('Finished blocking ads — stripped ' + streamInfo.NumStrippedAdSegments + ' ad segments (IsUsingModifiedM3U8: ' + streamInfo.IsUsingModifiedM3U8 + ')');
                 const hadStrippedSegments = streamInfo.NumStrippedAdSegments > 0;
                 streamInfo.IsShowingAd = false;
                 streamInfo.IsStrippingAdSegments = false;
@@ -769,6 +769,7 @@ twitch-videoad.js text/javascript
                 } else {
                 // Reload if backup was used AND segments were stripped (need clean state). Otherwise, respect ReloadPlayerAfterAd + cooldown.
                 const shouldReload = streamInfo.IsUsingModifiedM3U8 || (ReloadPlayerAfterAd && (hadStrippedSegments || !tooSoonSinceLastReload));
+                console.log('[AD DEBUG] Reload decision: shouldReload=' + shouldReload + ' IsUsingModifiedM3U8=' + streamInfo.IsUsingModifiedM3U8 + ' hadStripped=' + hadStrippedSegments + ' tooSoon=' + tooSoonSinceLastReload + ' cooldown=' + effectiveCooldown + 's');
                 if (shouldReload) {
                     streamInfo.ReloadTimestamps.push(Date.now());// Only track actual reloads, not skipped ones
                     streamInfo.IsUsingModifiedM3U8 = false;
