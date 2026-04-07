@@ -1078,7 +1078,9 @@ twitch-videoad.js text/javascript
         const playerState = findReactNode(reactRootNode, node => node.setSrc && node.setInitialPlaybackSettings);
         // Fallback: structural match — setSrc exists but setInitialPlaybackSettings was renamed
         const playerStateFallback = !playerState ? findReactNode(reactRootNode, node => node.setSrc && node.setStreamManagerNode && !node.getHTMLVideoElement) : null;
-        const finalPlayerState = playerState || playerStateFallback;
+        // Fallback 2: TTV-AB's approach — videoPlayerInstance with playerMode
+        const playerStateFallback2 = !playerState && !playerStateFallback ? findReactNode(reactRootNode, node => node.state?.videoPlayerInstance?.playerMode !== undefined)?.state?.videoPlayerInstance : null;
+        const finalPlayerState = playerState || playerStateFallback || playerStateFallback2;
         if (!player && !getPlayerAndState.loggedNoPlayer) {
             getPlayerAndState.loggedNoPlayer = true;
             console.log('[AD DEBUG] Player not found — Twitch may have renamed setPlayerActive/mediaPlayerInstance');
