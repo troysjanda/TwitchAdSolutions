@@ -1,6 +1,6 @@
 # Feature Comparison
 
-Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 5.0.6 vs pixeltris/TwitchAdSolutions (archived).
+Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 6.0.7 vs pixeltris/TwitchAdSolutions (archived).
 
 ## Ad Detection
 
@@ -16,16 +16,17 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 5.0
 |---|---|---|---|---|
 | Backup player type cycling | Yes | Yes | Yes | Yes |
 | Failed backup type tracking | Yes | Yes | Yes | No |
-| Pinned backup type | Yes (opt-in) | Yes (opt-in) | Yes (always on) | No |
+| Pinned backup type | Yes (default on) | Yes (default on) | Yes (always on) | No |
+| Auto-pin source quality | Yes | Yes | No | No |
 | Segment recovery cache | Yes | Yes | Yes | No |
 
 ## Ad Recovery
 
 | Feature | Release | Testing | TTV-AB | pixeltris |
 |---|---|---|---|---|
-| Ad-end grace period | PR | Yes | Yes | No |
-| Dead backup detection | PR | Yes | No | No |
-| Post-ad resume retry | PR | Yes | Yes | No |
+| Ad-end grace period | Yes | Yes | Yes | No |
+| Dead backup detection | Yes | Yes | No | No |
+| Post-ad resume retry | Yes | Yes | Yes | No |
 | Muted state restore | Yes | Yes | Yes | No |
 | Player error auto-recovery | No | Yes | Yes | No |
 
@@ -51,7 +52,10 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 5.0
 | Failed backup type retry (15s) | Yes | Yes | No | No |
 | Quality/volume restore | Yes | Yes | Yes | Yes |
 | User pause intent tracking | Yes | Yes | Yes | No |
-| Stale player ref invalidation | Yes | Yes | No | No |
+| Fresh player lookup every tick | Yes | Yes | No | No |
+| React fallback discovery | Yes | Yes | No | No |
+| Seek past buffer gaps | Yes | Yes | No | No |
+| Position jump drift correction | Yes | Yes | No | No |
 | Stale event filtering | No | No | Yes | No |
 | Worker crash recovery | No | No | Yes | No |
 
@@ -77,12 +81,25 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 5.0
 | GQL header capture log | Yes | Yes | No | No |
 | Stripped segment count | Yes | Yes | No | No |
 
+## Hardening
+
+| Feature | Release | Testing | TTV-AB | pixeltris |
+|---|---|---|---|---|
+| parseAttributes null guard | Yes | Yes | No | No |
+| Blob URL revoke protection | Yes | Yes | No | No |
+| Worker prototype chain cleanup | Yes | Yes | No | No |
+| GQL fetch timeout (15s) | Yes | Yes | No | No |
+| WASM worker JS cache | Yes | Yes | No | No |
+| Stream info TTL cleanup | Yes | Yes | No | No |
+| Dictionary objects (no prototype) | Yes | Yes | No | No |
+
 ## Null Safety
 
 | Feature | Release | Testing | TTV-AB | pixeltris |
 |---|---|---|---|---|
 | Optional chaining | Yes | Yes | Yes | No |
 | GQL response validation | Yes | Yes | Yes | No |
+| parseAttributes tag prefix strip | Yes | Yes | No | No |
 
 ## Compatibility
 

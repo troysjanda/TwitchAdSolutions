@@ -1,5 +1,33 @@
 ## Unreleased
 
+## v51.0.0
+
+### Hardening
+- Harden parseAttributes: null/empty guard + strip HLS tag prefix before parsing (fixes first key incorrectly prefixed with tag name)
+- Prevent Twitch from revoking injected worker blob URL (hook URL.revokeObjectURL)
+- Walk Worker prototype chain to remove conflicting overrides and re-insert compatible ones (e.g. TwitchNoSub)
+- Add 15s timeout on GQL fetch requests from worker (prevents hung backup stream lookups)
+- Cache WASM worker JS to avoid redundant synchronous fetches on worker re-creation
+
+### Player Stability
+- Fresh player lookup every buffer monitor tick (eliminates stale ref class entirely — no manual invalidation needed)
+- React fallback discovery: structural match on getHTMLVideoElement/getBufferDuration/core.state when Twitch renames setPlayerActive/mediaPlayerInstance
+- Player state fallback: TTV-AB's videoPlayerInstance.playerMode approach as third discovery path
+- Seek past buffer gaps at ad transitions instead of stalling + drift correction to recover
+- Trigger drift correction on position jumps >1.5s (native gap recovery by browser)
+- Extract startDriftCorrection as shared function (used by post-reload, buffer gap seek, and position jump)
+
+### Backup Stream
+- Auto-pin source-quality backup types (embed/site/popout) without requiring PinBackupPlayerType flag
+- Default PinBackupPlayerType to true
+
+### Performance
+- Use Object.create(null) for StreamInfos, StreamInfosByUrl, streamInfo.Urls dictionaries (avoids prototype chain lookups)
+- Prune stale stream infos older than 30 minutes (prevents unbounded memory growth on long sessions)
+
+### Ad Recovery
+- Respect reload cooldown when segments were stripped (was force-reloading regardless of cooldown)
+
 ## v50.0.0
 
 ### CSAI Cascade Fix
