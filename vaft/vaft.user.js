@@ -633,7 +633,7 @@
             }
             // Try pinned backup player type first if available
             const playerTypesToTry = [...BackupPlayerTypes];
-            if (PinBackupPlayerType && streamInfo.PinnedBackupPlayerType) {
+            if (streamInfo.PinnedBackupPlayerType) {
                 const pinnedIndex = playerTypesToTry.indexOf(streamInfo.PinnedBackupPlayerType);
                 if (pinnedIndex > 0) {
                     playerTypesToTry.splice(pinnedIndex, 1);
@@ -730,7 +730,8 @@
                 textStr = backupM3u8;
                 if (streamInfo.ActiveBackupPlayerType != backupPlayerType) {
                     streamInfo.ActiveBackupPlayerType = backupPlayerType;
-                    if (PinBackupPlayerType) {
+                    const sourceQualityTypes = ['embed', 'site', 'popout'];
+                    if (PinBackupPlayerType || sourceQualityTypes.includes(backupPlayerType)) {
                         streamInfo.PinnedBackupPlayerType = backupPlayerType;
                     }
                     console.log(`Blocking${(streamInfo.IsMidroll ? ' midroll ' : ' ')}ads (${backupPlayerType}) — backup found in ${Date.now() - backupSearchStart}ms`);
