@@ -727,7 +727,10 @@ twitch-videoad.js text/javascript
                 textStr = backupM3u8;
                 if (streamInfo.ActiveBackupPlayerType != backupPlayerType) {
                     streamInfo.ActiveBackupPlayerType = backupPlayerType;
-                    if (PinBackupPlayerType) {
+                    // Auto-pin source-quality backup types (embed, site, popout) to skip failed types on next break.
+                    // Never auto-pin low-quality types (autoplay, mobile_web) to avoid quality lock.
+                    const sourceQualityTypes = ['embed', 'site', 'popout'];
+                    if (PinBackupPlayerType || sourceQualityTypes.includes(backupPlayerType)) {
                         streamInfo.PinnedBackupPlayerType = backupPlayerType;
                     }
                     console.log(`Blocking${(streamInfo.IsMidroll ? ' midroll ' : ' ')}ads (${backupPlayerType}) — backup found in ${Date.now() - backupSearchStart}ms`);
