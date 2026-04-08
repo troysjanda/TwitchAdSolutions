@@ -150,11 +150,13 @@
     let injectedBlobUrl = null;
     function hookWindowWorker() {
         // Prevent Twitch from revoking our injected worker blob URL
-        const originalRevokeObjectURL = URL.revokeObjectURL;
-        URL.revokeObjectURL = function(url) {
-            if (url === injectedBlobUrl) return;
-            return originalRevokeObjectURL.call(this, url);
-        };
+        if (!URL.__tasOriginalRevokeObjectURL) {
+            URL.__tasOriginalRevokeObjectURL = URL.revokeObjectURL;
+            URL.revokeObjectURL = function(url) {
+                if (url === injectedBlobUrl) return;
+                return URL.__tasOriginalRevokeObjectURL.call(this, url);
+            };
+        }
         const reinsert = getWorkersForReinsert(window.Worker);
         const cleanWorker = getCleanWorker(window.Worker) || window.Worker;
         const newWorker = class Worker extends cleanWorker {
