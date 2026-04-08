@@ -404,12 +404,18 @@ twitch-videoad.js text/javascript
                                                     if (resSettings[codecsKey].startsWith('hev') || resSettings[codecsKey].startsWith('hvc')) {
                                                         const oldResolution = resSettings['RESOLUTION'];
                                                         const [targetWidth, targetHeight] = oldResolution.split('x').map(Number);
-                                                        const newResolutionInfo = nonHevcResolutionList.sort((a, b) => {
-                                                            // TODO: Take into account 'Frame-Rate' when sorting (i.e. 1080p60 vs 1080p30)
-                                                            const [streamWidthA, streamHeightA] = a.Resolution.split('x').map(Number);
-                                                            const [streamWidthB, streamHeightB] = b.Resolution.split('x').map(Number);
-                                                            return Math.abs((streamWidthA * streamHeightA) - (targetWidth * targetHeight)) - Math.abs((streamWidthB * streamHeightB) - (targetWidth * targetHeight));
-                                                        })[0];
+                                                        const targetArea = targetWidth * targetHeight;
+                                                        let newResolutionInfo = null;
+                                                        let closestDiff = Infinity;
+                                                        for (let j = 0; j < nonHevcResolutionList.length; j++) {
+                                                            const candidate = nonHevcResolutionList[j];
+                                                            const [streamWidth, streamHeight] = candidate.Resolution.split('x').map(Number);
+                                                            const diff = Math.abs((streamWidth * streamHeight) - targetArea);
+                                                            if (diff < closestDiff) {
+                                                                closestDiff = diff;
+                                                                newResolutionInfo = candidate;
+                                                            }
+                                                        }
                                                         console.log('ModifiedM3U8 swap ' + resSettings[codecsKey] + ' to ' + newResolutionInfo.Codecs + ' oldRes:' + oldResolution + ' newRes:' + newResolutionInfo.Resolution);
                                                         lines[i] = lines[i].replace(/CODECS="[^"]+"/, `CODECS="${newResolutionInfo.Codecs}"`);
                                                         lines[i + 1] = newResolutionInfo.Url + ' '.repeat(i + 1);// The stream doesn't load unless each url line is unique
