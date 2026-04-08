@@ -1,5 +1,22 @@
 ## Unreleased
 
+## v55.0.0
+
+### Performance
+- Use regex for hasAdTags instead of Array.some() — 6.7x faster on clean playlists (vaft)
+
+### Player Stability
+- Set actual playing quality before reload to avoid ABR ramp from low resolution — Twitch starts at the right quality instead of ramping from 360p (all scripts)
+- Fall back to unmodified worker if synchronous XHR fetch fails — prevents page reload loop on iOS Safari and other restricted environments (#78) (all scripts)
+- Add getCleanWorker null guard — prevents TypeError from class extends null when Worker prototype chain is unexpected (video-swap-new, strip, vaft testing)
+
+### Anti-Fingerprinting
+- Mask hooked functions (fetch, revokeObjectURL, XHR.open, localStorage) as native via toString() override — prevents Twitch from detecting the script via function inspection (all scripts)
+
+### Debug Logging
+- Warn on 3+ consecutive zero-strip ad breaks — early detection of false positive ad signifiers (vaft, video-swap-new)
+- Dedupe CSAI ad request logs to once per type per page load — reduces console spam from 40+ to 2 lines (all scripts)
+
 ## v54.0.0
 
 ### Performance
