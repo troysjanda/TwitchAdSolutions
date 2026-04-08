@@ -795,9 +795,8 @@ twitch-videoad.js text/javascript
                 streamInfo.CleanPlaylistCount = 0;
                 // CSAI-only ad break: no segments were stripped — skip reload entirely.
                 if (!hadStrippedSegments) {
-                    console.log('[AD DEBUG] CSAI-only ad break (stripped 0) — clearing backup without reload');
+                    console.log('[AD DEBUG] CSAI-only ad break (stripped 0) — clearing backup without player action');
                     streamInfo.IsUsingModifiedM3U8 = false;
-                    postMessage({ key: 'PauseResumePlayer' });
                 } else {
                 // Auto-escalate cooldown: if 3+ reloads in last 5 min, triple the cooldown
                 if (!streamInfo.ReloadTimestamps) streamInfo.ReloadTimestamps = [];
