@@ -380,7 +380,8 @@
                                         HasLoggedAdAttributes: false,
                                         LoggedBackupAdsByType: null,
                                         RecoveryStartSeq: undefined,
-                                        CleanPlaylistCount: 0
+                                        CleanPlaylistCount: 0,
+                                        ReloadTimestamps: []
                                     };
                                     const lines = encodingsM3u8.split(/\r?\n/);
                                     for (let i = 0; i < lines.length - 1; i++) {
@@ -967,7 +968,14 @@
         numSame: 0,
         fixAttempts: 0,
         lastFixTime: 0,
-        isLive: true
+        isLive: true,
+        lastBackupSwitchAt: 0,
+        lastReloadAt: 0,
+        recoveryReloadUsed: false,
+        userPauseIntent: false,
+        loggedPauseIntent: false,
+        weJustPaused: 0,
+        inAdBreak: false
     };
     // Poll the player state to detect and fix buffering caused by ad stream switching
     function monitorPlayerBuffering() {
