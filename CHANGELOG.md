@@ -1,5 +1,13 @@
 ## Unreleased
 
+## v54.0.0
+
+### Performance
+- Declare all object properties upfront in playerBufferState and streamInfo for V8 hidden class stability (vaft)
+
+### Hardening (video-swap-new)
+- Port 14 features from vaft: parseAttributes null check, Object.create(null) dictionaries, 15s GQL timeout, stream info TTL cleanup, WASM worker JS cache, React fallback discovery, revokeObjectURL hook, version logging, worker rejection/intercept logging, GQL headers log, GQL response validation, fetch hook log, split(/\r?\n/) line parsing
+
 ## v53.0.0
 
 ### Bug Fixes
