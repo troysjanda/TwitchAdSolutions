@@ -1259,7 +1259,7 @@ twitch-videoad.js text/javascript
             }
             // If WE recently called pause/play and player is still paused, retry play (stuck from autoplay policy or ad-state interference)
             if (playerBufferState.weJustPaused && (Date.now() - playerBufferState.weJustPaused) < 10000) {
-                try { player.play(); } catch {}
+                try { player.play()?.catch?.(() => {}); } catch {}
             }
             return;
         }
@@ -1268,7 +1268,7 @@ twitch-videoad.js text/javascript
         playerBufferState.numSame = 0;
         if (isPausePlay) {
             player.pause();
-            player.play();
+            player.play()?.catch?.(() => {});
             playerBufferState.weJustPaused = Date.now();
             return;
         }
@@ -1298,7 +1298,7 @@ twitch-videoad.js text/javascript
             console.log('Reloading Twitch player');
             playerState.setSrc({ isNewMediaPlayerInstance: true, refreshAccessToken: true });
             postTwitchWorkerMessage('TriggeredPlayerReload');
-            player.play();
+            player.play()?.catch?.(() => {});
             // Always restore muted/volume state after reload — Chrome autoplay policy can force muted
             if (currentQualityLS || currentMutedLS || currentVolumeLS) {
                 setTimeout(() => {
@@ -1467,7 +1467,7 @@ twitch-videoad.js text/javascript
                         playerBufferState.hasStreamStarted = true;
                     }
                     if (wasVideoPlaying && !videos[0].ended && videos[0].paused) {
-                        videos[0].play();
+                        videos[0].play()?.catch?.(() => {});
                     }
                 }
             }

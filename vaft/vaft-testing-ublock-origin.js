@@ -1172,7 +1172,7 @@ twitch-videoad.js text/javascript
             }
             // If WE recently called pause/play and player is still paused, retry play (stuck from autoplay policy or ad-state interference)
             if (playerBufferState.weJustPaused && (Date.now() - playerBufferState.weJustPaused) < 10000) {
-                try { player.play(); } catch {}
+                try { player.play()?.catch?.(() => {}); } catch {}
             }
             return;
         }
@@ -1183,7 +1183,7 @@ twitch-videoad.js text/javascript
         playerBufferState.numSame = 0;
         if (isPausePlay) {
             player.pause();
-            player.play();
+            player.play()?.catch?.(() => {});
             playerBufferState.weJustPaused = Date.now();
             return;
         }
@@ -1215,12 +1215,12 @@ twitch-videoad.js text/javascript
             postTwitchWorkerMessage('TriggeredPlayerReload');
             // Resume playback with retry — only if user hadn't manually paused
             if (!wasPaused) {
-                player.play();
+                player.play()?.catch?.(() => {});
                 // Retry resume if play() didn't take effect
                 setTimeout(() => {
                     try {
                         if (player.isPaused() && !player.core?.paused) {
-                            player.play();
+                            player.play()?.catch?.(() => {});
                         }
                     } catch {}
                 }, 1500);
@@ -1386,7 +1386,7 @@ twitch-videoad.js text/javascript
                         playerBufferState.hasStreamStarted = true;
                     }
                     if (wasVideoPlaying && !videos[0].ended && videos[0].paused) {
-                        videos[0].play();
+                        videos[0].play()?.catch?.(() => {});
                     }
                 }
             }

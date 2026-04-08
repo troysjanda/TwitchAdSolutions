@@ -445,7 +445,7 @@
         }
         if (isPausePlay) {
             player.pause();
-            player.play();
+            player.play()?.catch?.(() => {});
             return;
         }
         if (LastPlayerReload > Date.now() - ReloadPlayerDelay) {
@@ -472,7 +472,7 @@
         } catch {}
         console.log('Reloading Twitch player');
         playerState.setSrc({ isNewMediaPlayerInstance: true, refreshAccessToken: true });
-        player.play();
+        player.play()?.catch?.(() => {});
         if (localStorageHookFailed && (currentQualityLS || currentMutedLS || currentVolumeLS)) {
             setTimeout(() => {
                 try {

@@ -1011,7 +1011,7 @@ twitch-videoad.js text/javascript
         }
         if (isPausePlay) {
             player.pause();
-            player.play();
+            player.play()?.catch?.(() => {});
             return;
         }
         const lsKeyQuality = 'video-quality';
@@ -1035,12 +1035,12 @@ twitch-videoad.js text/javascript
         playerState.setSrc({ isNewMediaPlayerInstance: true, refreshAccessToken: true });
         // Resume playback with retry — only if user hadn't manually paused
         if (!wasPaused) {
-            player.play();
+            player.play()?.catch?.(() => {});
             // Retry resume if play() didn't take effect
             setTimeout(() => {
                 try {
                     if (player.isPaused() && !player.core?.paused) {
-                        player.play();
+                        player.play()?.catch?.(() => {});
                     }
                 } catch {}
             }, 1500);
@@ -1101,7 +1101,7 @@ twitch-videoad.js text/javascript
                     if (hidden.apply(document) === true || (webkitHidden && webkitHidden.apply(document) === true)) {
                         wasVideoPlaying = !videos[0].paused && !videos[0].ended;
                     } else if (wasVideoPlaying && !videos[0].ended && videos[0].paused) {
-                        videos[0].play();
+                        videos[0].play()?.catch?.(() => {});
                     }
                 }
             }

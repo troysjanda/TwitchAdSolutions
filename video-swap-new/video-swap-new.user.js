@@ -1037,7 +1037,7 @@
         }
         if (isPausePlay) {
             player.pause();
-            player.play();
+            player.play()?.catch?.(() => {});
             return;
         }
         const lsKeyQuality = 'video-quality';
@@ -1059,7 +1059,7 @@
             }
         } catch {}
         playerState.setSrc({ isNewMediaPlayerInstance: true, refreshAccessToken: true });
-        player.play();
+        player.play()?.catch?.(() => {});
         // Always restore muted/volume state after reload — Chrome autoplay policy can force muted
         if (currentQualityLS || currentMutedLS || currentVolumeLS) {
             setTimeout(() => {
@@ -1116,7 +1116,7 @@
                     if (hidden.apply(document) === true || (webkitHidden && webkitHidden.apply(document) === true)) {
                         wasVideoPlaying = !videos[0].paused && !videos[0].ended;
                     } else if (wasVideoPlaying && !videos[0].ended && videos[0].paused) {
-                        videos[0].play();
+                        videos[0].play()?.catch?.(() => {});
                     }
                 }
             }

@@ -1025,7 +1025,7 @@ twitch-videoad.js text/javascript
         }
         if (isPausePlay) {
             player.pause();
-            player.play();
+            player.play()?.catch?.(() => {});
             return;
         }
         const lsKeyQuality = 'video-quality';
@@ -1047,7 +1047,7 @@ twitch-videoad.js text/javascript
             }
         } catch {}
         playerState.setSrc({ isNewMediaPlayerInstance: true, refreshAccessToken: true });
-        player.play();
+        player.play()?.catch?.(() => {});
         // Always restore muted/volume state after reload — Chrome autoplay policy can force muted
         if (currentQualityLS || currentMutedLS || currentVolumeLS) {
             setTimeout(() => {
@@ -1104,7 +1104,7 @@ twitch-videoad.js text/javascript
                     if (hidden.apply(document) === true || (webkitHidden && webkitHidden.apply(document) === true)) {
                         wasVideoPlaying = !videos[0].paused && !videos[0].ended;
                     } else if (wasVideoPlaying && !videos[0].ended && videos[0].paused) {
-                        videos[0].play();
+                        videos[0].play()?.catch?.(() => {});
                     }
                 }
             }
