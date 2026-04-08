@@ -1,5 +1,16 @@
 ## Unreleased
 
+## v52.0.0
+
+### CSAI Handling
+- Remove pause/play for CSAI-only ad breaks — stream was never interrupted, the unnecessary pause/play caused Twitch's player to seek back ~10s, repeat video, and trigger "video buffering" warnings
+- Skip grace period for CSAI-only ad breaks — require only 1 clean playlist instead of 2 (no m3u8 metadata flicker risk when 0 segments were stripped), clears ad state ~2s faster
+- Skip position jump drift correction during ad breaks — backup stream switching causes buffer gaps that the browser jumps across, falsely triggering drift correction at 1.1x
+
+### Player Stability
+- Guard against drift correction restart while already correcting — prevents perpetual 1.1x playback when repeated position jumps keep resetting the 30s safety timeout
+- Make revokeObjectURL hook idempotent — prevents stacking multiple wrappers if hookWindowWorker is called more than once
+
 ## v51.0.0
 
 ### Hardening
