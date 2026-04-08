@@ -795,9 +795,8 @@ twitch-videoad.js text/javascript
                 streamInfo.CleanPlaylistCount = 0;
                 // CSAI-only ad break: no segments were stripped — skip reload entirely.
                 if (!hadStrippedSegments) {
-                    console.log('[AD DEBUG] CSAI-only ad break (stripped 0) — clearing backup without reload');
+                    console.log('[AD DEBUG] CSAI-only ad break (stripped 0) — clearing backup without player action');
                     streamInfo.IsUsingModifiedM3U8 = false;
-                    postMessage({ key: 'PauseResumePlayer' });
                 } else {
                 // Auto-escalate cooldown: if 3+ reloads in last 5 min, triple the cooldown
                 if (!streamInfo.ReloadTimestamps) streamInfo.ReloadTimestamps = [];
@@ -924,8 +923,7 @@ twitch-videoad.js text/javascript
     let driftCatchUpTimeout = null;
     function startDriftCorrection(videoElement) {
         if (DriftCorrectionRate <= 1) return;
-        if (driftCatchUpInterval) { clearInterval(driftCatchUpInterval); driftCatchUpInterval = null; }
-        if (driftCatchUpTimeout) { clearTimeout(driftCatchUpTimeout); driftCatchUpTimeout = null; }
+        if (driftCatchUpInterval) return; // already correcting — let it finish or timeout
         videoElement.playbackRate = DriftCorrectionRate;
         console.log('[AD DEBUG] Drift correction: catching up at ' + DriftCorrectionRate + 'x');
         driftCatchUpInterval = setInterval(() => {
@@ -1063,7 +1061,8 @@ twitch-videoad.js text/javascript
                             playerBufferState.recoveryReloadUsed = false;
                         }
                         // Detect position jump (native gap recovery) — drift to catch up
-                        if (playerBufferState.position > 0 && position - playerBufferState.position > 1.5) {
+                        // Skip during ad breaks: backup stream switching causes buffer gaps that trigger false jumps
+                        if (playerBufferState.position > 0 && position - playerBufferState.position > 1.5 && !playerBufferState.inAdBreak) {
                             console.log('[AD DEBUG] Position jumped ' + (position - playerBufferState.position).toFixed(1) + 's — starting drift correction');
                             startDriftCorrection(player.getHTMLVideoElement?.());
                         }
