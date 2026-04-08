@@ -393,7 +393,8 @@
                                         LoggedBackupAdsByType: null,
                                         RecoveryStartSeq: undefined,
                                         CleanPlaylistCount: 0,
-                                        ReloadTimestamps: []
+                                        ReloadTimestamps: [],
+                                        ConsecutiveZeroStripBreaks: 0
                                     };
                                     const lines = encodingsM3u8.split(/\r?\n/);
                                     for (let i = 0; i < lines.length - 1; i++) {
@@ -816,6 +817,14 @@
                 }
                 console.log('Finished blocking ads — stripped ' + streamInfo.NumStrippedAdSegments + ' ad segments');
                 const hadStrippedSegments = streamInfo.NumStrippedAdSegments > 0;
+                if (!hadStrippedSegments) {
+                    streamInfo.ConsecutiveZeroStripBreaks++;
+                    if (streamInfo.ConsecutiveZeroStripBreaks >= 3) {
+                        console.log('[AD DEBUG] Warning: ' + streamInfo.ConsecutiveZeroStripBreaks + ' consecutive ad breaks with 0 segments stripped — possible false positive from ad signifiers');
+                    }
+                } else {
+                    streamInfo.ConsecutiveZeroStripBreaks = 0;
+                }
                 streamInfo.IsShowingAd = false;
                 streamInfo.IsStrippingAdSegments = false;
                 streamInfo.NumStrippedAdSegments = 0;

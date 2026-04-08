@@ -529,7 +529,15 @@ twitch-videoad.js text/javascript
                             if (!hasLiveSegments) {
                                 console.log('[AD DEBUG] Backup stream has no live segments — forcing immediate reload');
                             }
-                            console.log('No more ads on main stream. ' + (ReloadPlayerAfterAd ? 'Triggering player reload to go back to main stream...' : 'Resuming playback...'));
+                            console.log('No more ads on main stream. Stripped ' + streamInfo.NumStrippedAdSegments + ' ad segments. ' + (ReloadPlayerAfterAd ? 'Triggering player reload to go back to main stream...' : 'Resuming playback...'));
+                            if (streamInfo.NumStrippedAdSegments === 0) {
+                                streamInfo.ConsecutiveZeroStripBreaks++;
+                                if (streamInfo.ConsecutiveZeroStripBreaks >= 3) {
+                                    console.log('[AD DEBUG] Warning: ' + streamInfo.ConsecutiveZeroStripBreaks + ' consecutive ad breaks with 0 segments stripped — possible false positive from ad signifiers');
+                                }
+                            } else {
+                                streamInfo.ConsecutiveZeroStripBreaks = 0;
+                            }
                             streamInfo.IsMovingOffBackupEncodings = true;
                             streamInfo.BackupEncodings = null;
                             streamInfo.BackupEncodingsStatus.clear();
@@ -640,6 +648,7 @@ twitch-videoad.js text/javascript
                                 NumStrippedAdSegments: 0,
                                 RecoverySegments: [],
                                 CleanPlaylistCount: 0,
+                                ConsecutiveZeroStripBreaks: 0,
                                 UseFallbackStream: false,
                                 ChannelName: channelName,
                                 UsherParams: (new URL(url)).search,
