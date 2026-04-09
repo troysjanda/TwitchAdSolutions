@@ -578,7 +578,13 @@
                                 const encodingsM3u8Response = await realFetch(urlInfo.href);
                                 if (encodingsM3u8Response.status === 200) {
                                     encodingsM3u8 = streamInfo.BackupEncodingsM3U8Cache[playerType] = await encodingsM3u8Response.text();
+                                } else {
+                                    console.log('[AD DEBUG] Usher HTTP ' + encodingsM3u8Response.status + ' for ' + realPlayerType);
                                 }
+                            } else {
+                                let errorBody = '';
+                                try { errorBody = ' — ' + (await accessTokenResponse.text()).substring(0, 200); } catch {}
+                                console.log('[AD DEBUG] Access token HTTP ' + accessTokenResponse.status + ' for ' + realPlayerType + (accessTokenResponse.status === 403 ? ' (integrity: ' + (ClientIntegrityHeader ? 'present' : 'missing') + ')' : '') + errorBody);
                             }
                         } catch (err) {
                             console.log('[AD DEBUG] Access token failed for ' + realPlayerType + ': ' + err.message);
@@ -939,6 +945,21 @@
         }
         setTimeout(monitorPlayerErrors, 3000);
     }
+    // Hide Twitch's ad break / Turbo promo overlay when we're already blocking ads
+    function hideTwitchAdOverlays() {
+        if (!cachedPlayerRootDiv || !cachedPlayerRootDiv.isConnected) return;
+        const promoLinks = cachedPlayerRootDiv.querySelectorAll(
+            'a[href*="/how-to-allow-ads-browser"], a[href="https://www.twitch.tv/turbo"]'
+        );
+        for (let i = 0; i < promoLinks.length; i++) {
+            const overlay = promoLinks[i].closest('.player-overlay-background');
+            if (overlay && !overlay.dataset.tasHidden) {
+                overlay.dataset.tasHidden = '';
+                overlay.style.setProperty('display', 'none', 'important');
+                console.log('[AD DEBUG] Hidden Twitch ad/Turbo promo overlay');
+            }
+        }
+    }
     function updateAdblockBanner(data) {
         if (!cachedPlayerRootDiv || !cachedPlayerRootDiv.isConnected) {
             cachedPlayerRootDiv = document.querySelector('.video-player');
@@ -959,6 +980,9 @@
                 isActivelyStrippingAds = data.isStrippingAdSegments;
                 adBlockDiv.P.textContent = 'Blocking' + (data.isMidroll ? ' midroll' : '') + ' ads' + (data.isStrippingAdSegments ? ' (stripping)' : '');// + (data.numStrippedAdSegments > 0 ? ` (${data.numStrippedAdSegments})` : '');
                 adBlockDiv.style.display = data.hasAds && playerBufferState.isLive ? 'block' : 'none';
+            }
+            if (data.hasAds) {
+                hideTwitchAdOverlays();
             }
         }
     }
