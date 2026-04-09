@@ -724,7 +724,7 @@ twitch-videoad.js text/javascript
                                     if (isFullyCachedPlayerType) {
                                         break;
                                     }
-                                    if (isDoingMinimalRequests) {
+                                    if (isDoingMinimalRequests || streamInfo.ConsecutiveZeroStripBreaks >= 3) {
                                         backupPlayerType = playerType;
                                         backupM3u8 = m3u8Text;
                                         break;
