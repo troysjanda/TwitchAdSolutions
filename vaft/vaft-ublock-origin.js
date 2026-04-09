@@ -259,6 +259,10 @@ twitch-videoad.js text/javascript
                         // Track backup stream switches (start and end of ad break)
                         if (e.data.hasAds !== !!playerBufferState.inAdBreak) {
                             playerBufferState.lastBackupSwitchAt = Date.now();
+                            // Reset position tracking on ad-end so the stream switch gap isn't detected as a jump
+                            if (!e.data.hasAds) {
+                                playerBufferState.position = 0;
+                            }
                         }
                         playerBufferState.inAdBreak = !!e.data.hasAds;
                         // Clear drift catch-up when ads start — don't run 1.1x during ad handling
