@@ -1285,6 +1285,13 @@
             playerBufferState.weJustPaused = Date.now();
             return;
         }
+        if (isReload && document.pictureInPictureElement) {
+            // Downgrade to pause/play to preserve PiP — setSrc exits PiP
+            player.pause();
+            player.play()?.catch?.(() => {});
+            console.log('[AD DEBUG] Downgraded reload to pause/play to preserve PiP');
+            return;
+        }
         if (isReload) {
             const lsKeyQuality = 'video-quality';
             const lsKeyMuted = 'video-muted';
