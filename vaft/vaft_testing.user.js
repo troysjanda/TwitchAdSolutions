@@ -233,6 +233,10 @@
                         // Track backup stream switches (start and end of ad break)
                         if (e.data.hasAds !== !!playerBufferState.inAdBreak) {
                             playerBufferState.lastBackupSwitchAt = Date.now();
+                            // Reset position tracking on ad-end so the stream switch gap isn't detected as a jump
+                            if (!e.data.hasAds) {
+                                playerBufferState.position = 0;
+                            }
                         }
                         playerBufferState.inAdBreak = !!e.data.hasAds;
                     } else if (e.data.key == 'PauseResumePlayer') {
