@@ -1,5 +1,16 @@
 ## Unreleased
 
+## v56.0.0
+
+### Bug Fixes
+- Revert hasAdTags to Array.some() — the regex used shortened alternations that matched more broadly than the signifier array, causing false ad detections and empty signifier logs on subscribed channels (#82). Removes AdSignifierRegex entirely.
+
+### Player Stability
+- Downgrade reload to pause/play when in Picture-in-Picture mode — setSrc creates a new player instance which exits PiP. Now detects `document.pictureInPictureElement` and uses pause/play instead so PiP stays open throughout ad breaks (all scripts)
+
+### Debug Logging
+- Log video element state (readyState, networkState, buffered, currentTime, paused) before buffer monitor fix attempts — helps diagnose iOS video issues and over-aggressive interventions (vaft)
+
 ## v55.0.0
 
 ### Performance
