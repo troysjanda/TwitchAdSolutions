@@ -23,7 +23,6 @@
     // Configuration and state shared between window and worker scopes
     function declareOptions(scope) {
         scope.AdSignifiers = ['stitched', 'stitched-ad', 'X-TV-TWITCH-AD', 'EXT-X-CUE-OUT', 'EXT-X-DATERANGE:CLASS="twitch-stitched-ad"', 'EXT-X-DATERANGE:CLASS="twitch-stream-source"', 'EXT-X-DATERANGE:CLASS="twitch-trigger"', 'EXT-X-DATERANGE:CLASS="twitch-maf-ad"', 'EXT-X-DATERANGE:CLASS="twitch-ad-quartile"', 'SCTE35-OUT'];
-        scope.AdSignifierRegex = /stitched|X-TV-TWITCH-AD|EXT-X-CUE-OUT|SCTE35-OUT|twitch-stream-source|twitch-trigger|twitch-maf-ad|twitch-ad-quartile/;
         scope.AdSegmentURLPatterns = ['/adsquared/', '/_404/', '/processing'];
         scope.ClientID = 'kimne78kx3ncx6brgo4mv6wki5h1ko';
         scope.BackupPlayerTypes = [
@@ -489,7 +488,7 @@
         return newServerTime ? encodingsM3u8.replace(/(SERVER-TIME=")[0-9.]+"/, `SERVER-TIME="${newServerTime}"`) : encodingsM3u8;
     }
     function hasAdTags(textStr) {
-        return AdSignifierRegex.test(textStr);
+        return AdSignifiers.some((s) => textStr.includes(s));
     }
     function getMatchedAdSignifiers(textStr) {
         return AdSignifiers.filter((s) => textStr.includes(s));
