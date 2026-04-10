@@ -31,6 +31,7 @@ twitch-videoad.js text/javascript
         scope.DisableReloadCap = false;// If true, buffer monitor reloads unlimited times (pre-v47 behavior, risk of cascade)
         scope.DriftCorrectionRate = 1.1;// Playback rate for catching up to live edge after reload (0 = disable drift correction)
         scope.EarlyReloadPollThreshold = 5;// Number of consecutive all-stripped polls before triggering early reload (each poll ~2s, so 5 = ~10s, 3 = ~6s, 10 = ~20s; 0 = disable)
+        scope.DisableAdSpoofing = false;// If true, skip the ad-impression spoofing GQL beacons (notifyAdComplete) — for A/B testing whether spoofing affects ad break duration
         scope.PinBackupPlayerType = true;// Remember which backup player type worked and try it first on next ad break
         scope.PlayerReloadMinimalRequestsTime = 1500;
         scope.PlayerReloadMinimalRequestsPlayerIndex = 2;//autoplay
@@ -182,6 +183,7 @@ twitch-videoad.js text/javascript
                     DisableReloadCap = ${DisableReloadCap};
                     PinBackupPlayerType = ${PinBackupPlayerType};
                     EarlyReloadPollThreshold = ${EarlyReloadPollThreshold};
+                    DisableAdSpoofing = ${DisableAdSpoofing};
                     ForceAccessTokenPlayerType = '${ForceAccessTokenPlayerType}';
                     GQLDeviceID = ${GQLDeviceID ? "'" + GQLDeviceID + "'" : null};
                     AuthorizationHeader = ${AuthorizationHeader ? "'" + AuthorizationHeader + "'" : undefined};
@@ -670,7 +672,9 @@ twitch-videoad.js text/javascript
                 streamInfo.EarlyReloadCount = 0;
                 streamInfo.EarlyReloadAtPoll = 0;
                 console.log('[AD DEBUG] Ad detected — type: ' + (streamInfo.IsMidroll ? 'midroll' : 'preroll') + ', channel: ' + streamInfo.ChannelName + ', pod: ' + podLength + ' ad(s) (~' + (podLength * 30) + 's expected), signifiers: ' + getMatchedAdSignifiers(textStr).join(', '));
-                notifyAdComplete(textStr);
+                if (!DisableAdSpoofing) {
+                    notifyAdComplete(textStr);
+                }
                 postMessage({
                     key: 'UpdateAdBlockBanner',
                     isMidroll: streamInfo.IsMidroll,
@@ -1652,6 +1656,10 @@ twitch-videoad.js text/javascript
         const lsEarlyReload = parseInt(localStorage.getItem('twitchAdSolutions_earlyReloadPollThreshold'));
         if (!isNaN(lsEarlyReload) && lsEarlyReload >= 0) {
             EarlyReloadPollThreshold = lsEarlyReload;
+        }
+        const lsDisableAdSpoofing = localStorage.getItem('twitchAdSolutions_disableAdSpoofing');
+        if (lsDisableAdSpoofing !== null) {
+            DisableAdSpoofing = lsDisableAdSpoofing === 'true';
         }
         const lsPlayerType = localStorage.getItem('twitchAdSolutions_playerType');
         if (lsPlayerType !== null) {

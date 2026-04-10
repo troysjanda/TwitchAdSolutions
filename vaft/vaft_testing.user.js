@@ -38,6 +38,7 @@
         scope.AlwaysReloadPlayerOnAd = false;// Always pause/play when entering/leaving ads
         scope.ReloadPlayerAfterAd = true;// After the ad finishes do a player reload instead of pause/play
         scope.ReloadCooldownSeconds = 30;// Minimum seconds between reloads — breaks CSAI cascades triggered by reload
+        scope.DisableAdSpoofing = false;// If true, skip the ad-impression spoofing GQL beacons (notifyAdComplete) — for A/B testing whether spoofing affects ad break duration
         scope.PlayerReloadMinimalRequestsTime = 1500;
         scope.PlayerReloadMinimalRequestsPlayerIndex = 2;//autoplay
         scope.HasTriggeredPlayerReload = false;
@@ -176,6 +177,7 @@
                     ${replaceServerTimeInM3u8.toString()}
                     const workerString = getWasmWorkerJs('${twitchBlobUrl.replaceAll("'", "%27")}');
                     declareOptions(self);
+                    DisableAdSpoofing = ${DisableAdSpoofing};
                     GQLDeviceID = ${GQLDeviceID ? "'" + GQLDeviceID + "'" : null};
                     AuthorizationHeader = ${AuthorizationHeader ? "'" + AuthorizationHeader + "'" : undefined};
                     ClientIntegrityHeader = ${ClientIntegrityHeader ? "'" + ClientIntegrityHeader + "'" : null};
@@ -581,7 +583,9 @@
             if (!streamInfo.IsShowingAd) {
                 streamInfo.IsShowingAd = true;
                 console.log('[AD DEBUG] Ad detected — type: ' + (streamInfo.IsMidroll ? 'midroll' : 'preroll') + ', channel: ' + streamInfo.ChannelName);
-                notifyAdComplete(textStr);
+                if (!DisableAdSpoofing) {
+                    notifyAdComplete(textStr);
+                }
                 postMessage({
                     key: 'UpdateAdBlockBanner',
                     isMidroll: streamInfo.IsMidroll,
@@ -1402,6 +1406,12 @@
         }
     }
     declareOptions(window);
+    try {
+        const lsDisableAdSpoofing = localStorage.getItem('twitchAdSolutions_disableAdSpoofing');
+        if (lsDisableAdSpoofing !== null) {
+            DisableAdSpoofing = lsDisableAdSpoofing === 'true';
+        }
+    } catch {}
     hookWindowWorker();
     hookFetch();
     if (PlayerBufferingFix) {
