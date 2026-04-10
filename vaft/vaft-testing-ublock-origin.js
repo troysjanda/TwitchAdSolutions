@@ -671,6 +671,7 @@ twitch-videoad.js text/javascript
                 streamInfo.EarlyReloadTriggered = false;
                 streamInfo.EarlyReloadCount = 0;
                 streamInfo.EarlyReloadAtPoll = 0;
+                streamInfo.SawCSAIFastPath = false;
                 console.log('[AD DEBUG] Ad detected — type: ' + (streamInfo.IsMidroll ? 'midroll' : 'preroll') + ', channel: ' + streamInfo.ChannelName + ', pod: ' + podLength + ' ad(s) (~' + (podLength * 30) + 's expected), signifiers: ' + getMatchedAdSignifiers(textStr).join(', '));
                 if (!DisableAdSpoofing) {
                     notifyAdComplete(textStr);
@@ -723,6 +724,7 @@ twitch-videoad.js text/javascript
                 }
             }
             if (!hasNonLiveSegment && !streamInfo.IsUsingModifiedM3U8) {
+                streamInfo.SawCSAIFastPath = true;
                 console.log('[AD DEBUG] CSAI fast path — all segments live, skipping backup search');
                 if (IsAdStrippingEnabled) {
                     textStr = stripAdSegments(textStr, false, streamInfo);
@@ -917,13 +919,16 @@ twitch-videoad.js text/javascript
                     console.log('[AD DEBUG] Ad break stats: ' + streamInfo.TotalAllStrippedPolls + ' all-stripped polls (~' + freezeDuration + 's freeze)' + reloadInfo);
                 }
                 const hadStrippedSegments = streamInfo.NumStrippedAdSegments > 0;
-                if (!hadStrippedSegments) {
+                // Only count toward false-positive guard if it was NOT a CSAI-only break.
+                // CSAI breaks are real ads delivered outside the m3u8 — they legitimately
+                // produce 0 stripped segments and should not be flagged as false positives.
+                if (!hadStrippedSegments && !streamInfo.SawCSAIFastPath) {
                     if (!streamInfo.ConsecutiveZeroStripBreaks) streamInfo.ConsecutiveZeroStripBreaks = 0;
                     streamInfo.ConsecutiveZeroStripBreaks++;
                     if (streamInfo.ConsecutiveZeroStripBreaks >= 3) {
-                        console.log('[AD DEBUG] Warning: ' + streamInfo.ConsecutiveZeroStripBreaks + ' consecutive ad breaks with 0 segments stripped — possible false positive from ad signifiers');
+                        console.log('[AD DEBUG] Warning: ' + streamInfo.ConsecutiveZeroStripBreaks + ' consecutive non-CSAI ad breaks with 0 segments stripped — possible false positive from ad signifiers');
                     }
-                } else {
+                } else if (hadStrippedSegments) {
                     streamInfo.ConsecutiveZeroStripBreaks = 0;
                 }
                 streamInfo.IsShowingAd = false;
