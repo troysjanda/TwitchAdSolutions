@@ -931,7 +931,7 @@ twitch-videoad.js text/javascript
                     streamInfo.IsUsingModifiedM3U8 = false;
                 } else {
                 // Reload if backup was used AND segments were stripped (need clean state). Otherwise, respect ReloadPlayerAfterAd + cooldown.
-                const shouldReload = streamInfo.IsUsingModifiedM3U8 || (ReloadPlayerAfterAd && (hadStrippedSegments || !tooSoonSinceLastReload));
+                const shouldReload = streamInfo.IsUsingModifiedM3U8 || (ReloadPlayerAfterAd && hadStrippedSegments && !tooSoonSinceLastReload);
                 console.log('[AD DEBUG] Reload decision: shouldReload=' + shouldReload + ' IsUsingModifiedM3U8=' + streamInfo.IsUsingModifiedM3U8 + ' hadStripped=' + hadStrippedSegments + ' tooSoon=' + tooSoonSinceLastReload + ' cooldown=' + effectiveCooldown + 's');
                 if (shouldReload) {
                     streamInfo.ReloadTimestamps.push(Date.now());// Only track actual reloads, not skipped ones

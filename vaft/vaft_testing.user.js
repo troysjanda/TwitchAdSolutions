@@ -780,7 +780,7 @@
                 streamInfo.IsUsingModifiedM3U8 = false;
             } else {
             // Reload if backup was used AND segments were stripped (need clean state). Otherwise, respect ReloadPlayerAfterAd + cooldown.
-            const shouldReload = streamInfo.IsUsingModifiedM3U8 || (ReloadPlayerAfterAd && (hadStrippedSegments || !tooSoonSinceLastReload));
+            const shouldReload = streamInfo.IsUsingModifiedM3U8 || (ReloadPlayerAfterAd && hadStrippedSegments && !tooSoonSinceLastReload);
             if (shouldReload) {
                 streamInfo.ReloadTimestamps.push(Date.now());// Only track actual reloads, not skipped ones
                 streamInfo.IsUsingModifiedM3U8 = false;
