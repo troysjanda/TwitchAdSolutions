@@ -5,16 +5,20 @@
 ### Chrome / Edge
 1. Press `F12` or `Ctrl+Shift+J` (Windows/Linux) / `Cmd+Option+J` (Mac)
 2. Click the **Console** tab
-3. Change from `Default` to INFO only to just show our Twitch logs
+3. Change from `Default` to `INFO` only to just show our Twitch logs and nothing else.
+4. Copy 20+ lines of these debug lines, paste in the Github report. More debug info the better.
 
 ### Firefox
 1. Press `F12` or `Ctrl+Shift+K` (Windows/Linux) / `Cmd+Option+K` (Mac)
 2. Click the **Console** tab
+3. Change to `INFO` only to just show our Twitch logs and nothing else.
+4. Copy 20+ lines of these debug lines, paste in the Github report. More debug info the better.
 
 ### Safari
 1. Enable Developer Tools: Settings > Advanced > Show Develop menu
 2. Press `Cmd+Option+C`
 3. Click the **Console** tab
+4. Copy 20+ lines of these debug lines, paste in the Github report. More debug info the better.
 
 ## What to Look For
 
