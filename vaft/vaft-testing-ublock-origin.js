@@ -800,6 +800,9 @@ twitch-videoad.js text/javascript
                                         fallbackM3u8 = m3u8Text;
                                     }
                                     if ((!hasAdTags(m3u8Text) && (SimulatedAdsDepth == 0 || playerTypeIndex >= SimulatedAdsDepth - 1)) || (!fallbackM3u8 && playerTypeIndex >= playerTypesToTry.length - 1)) {
+                                        if ((streamInfo.ConsecutiveAllStrippedPolls || 0) >= 2 && !hasAdTags(m3u8Text)) {
+                                            console.log('[AD DEBUG] Found clean backup (' + playerType + ') during freeze — recovered without reload');
+                                        }
                                         backupPlayerType = playerType;
                                         backupM3u8 = m3u8Text;
                                         break;
@@ -811,9 +814,13 @@ twitch-videoad.js text/javascript
                                             console.log('[AD DEBUG] Backup stream (' + playerType + ') also has ads');
                                         }
                                     }
-                                    // If backup also has ads, take it immediately — trying other
-                                    // player types won't help (Twitch serves ads across all types)
-                                    if (hasAdTags(m3u8Text) || isFullyCachedPlayerType || isDoingMinimalRequests) {
+                                    if (isFullyCachedPlayerType) {
+                                        break;
+                                    }
+                                    // Keep iterating other player types in case one is clean.
+                                    // Take ad-laden backup as last resort: minimal-requests window,
+                                    // 3+ ad breaks with 0 strips (false positive), or final type tried.
+                                    if (isDoingMinimalRequests || streamInfo.ConsecutiveZeroStripBreaks >= 3 || playerTypeIndex >= playerTypesToTry.length - 1) {
                                         backupPlayerType = playerType;
                                         backupM3u8 = m3u8Text;
                                         break;
