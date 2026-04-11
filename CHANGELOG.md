@@ -1,5 +1,40 @@
 ## Unreleased
 
+## v58.0.0
+
+### New Features
+- **CSAI fast path** — when all m3u8 segments are live, skip backup stream search entirely. Eliminates the 20-40s rebuffer gap on pure-CSAI ad breaks (vaft + video-swap-new) (#90, #103)
+- **Early reload on prolonged SSAI freeze + multi-ad pod support** — after ~10s of strip+recovery loop, trigger a player reload to break the freeze. Bounded to one reload per ad in the pod. Configurable via `localStorage.twitchAdSolutions_earlyReloadPollThreshold` (default 5, set 0 to disable) (vaft) (#94)
+- **Loading-circle health check during ad break** — fires reload after ~3s of confirmed `readyState < 3 + paused/no-network` during ad strip. Catches visible player stalls faster than the poll-based early reload (vaft) (#96)
+- **Cycle backup player types during freeze** — when first backup is ad-laden and we're already in a recovery freeze, iterate through other player types looking for clean. Avoids unnecessary reloads when an alternate backup is healthy (vaft) (#95)
+- **Skip end-of-break reload on real cycle switch** — when cycle rescue actually switched to a different clean player type, skip the redundant end-of-break reload (vaft) (#98, #101)
+
+### Bug Fixes
+- **Cross-channel cooldown leak** — first end-of-break reload on a fresh channel session was being incorrectly blocked by cooldown left over from a previous channel's reload (or session-creation timestamp). Two fixes: clear `HasTriggeredPlayerReload` on new session, and don't unconditionally set `LastPlayerReload` on session creation (vaft) (#97, #102)
+- **TotalAllStrippedPolls counter never incrementing** — counter was checking `IsStrippingAdSegments && !textStr.includes(',live')` after `stripAdSegments` had already injected recovery segments. Moved the increment into `stripAdSegments` (vaft)
+- **CSAI-only breaks falsely flagged as false positives** — the "consecutive ad breaks with 0 segments stripped" warning was firing on real ads that we successfully avoided via clean backup. Added `HasConfirmedAdAttrs` guard checking for `X-TV-TWITCH-AD-AD-SESSION-ID` / `X-TV-TWITCH-AD-RADS-TOKEN` markers (vaft + video-swap-new) (#103)
+- **Take first ad-laden backup as fast-exit** — when first backup also has ads, commit immediately instead of cycling all player types in the common case. Cycle behavior preserved for the freeze case via #95 (vaft) (#89)
+- **Skip buffer monitor when player has no data loaded** — prevents buffer monitor from misfiring on partially-initialized players (vaft) (#92)
+
+### Low-Latency HLS Hardening
+- **Strip `#EXT-X-PRELOAD-HINT`** during ad blocking alongside the existing `#EXT-X-TWITCH-PREFETCH` removal — forward-compatibility for when Twitch transitions to the standard LL-HLS tag (vaft + video-swap-new) (#104)
+- **Strip ad-laden `#EXT-X-PART:` lines** — LL-HLS parts that contain known ad URLs are now stripped alongside `#EXTINF` segments. Prevents ads from leaking via the low-latency parts path (vaft + video-swap-new) (#105)
+
+### Debug Logging
+- Pod length and expected duration on ad detection: `pod: N ad(s) (~Xs expected)` (vaft)
+- Ad break wall-clock duration: `Finished blocking ads — stripped N segments, duration: Xs` (vaft)
+- Wall-clock freeze duration in ad break stats — replaces misleading poll-count estimate (vaft)
+- Distinguishes "cycle switched to different clean type" from "same type became clean — natural recovery" (vaft) (#99)
+- Per-trigger early-reload count: `[1/2]` for pod-aware budget (vaft)
+- New CSAI ad request detection log via XHR/fetch hook (vaft)
+
+### Performance / Hygiene
+- Player health guard before reload — skip reload when player is already playing fine (vaft)
+- PiP-aware reload downgrade — use pause/play instead of setSrc when PiP active (vaft)
+
+### Configurable via localStorage (new in this release)
+- `twitchAdSolutions_earlyReloadPollThreshold` — number, default `5` (each poll ~2s, so 5 = ~10s before early reload fires); set `0` to disable
+
 ## v57.0.0
 
 ### Player Stability
