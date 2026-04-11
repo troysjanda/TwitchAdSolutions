@@ -225,13 +225,18 @@ twitch-videoad.js text/javascript
                         } else if (e.data.key == 'ReloadSkipped') {
                             // Main thread refused the reload (player healthy) — clear the
                             // early-reload flags so we can re-fire if the player later stalls
+                            let cleared = false;
                             for (const channel in StreamInfos) {
                                 const si = StreamInfos[channel];
                                 if (si && si.EarlyReloadTriggered) {
                                     si.EarlyReloadTriggered = false;
                                     si.EarlyReloadAwaitingResult = false;
                                     si.EarlyReloadCount = Math.max(0, (si.EarlyReloadCount || 0) - 1);
+                                    cleared = true;
                                 }
+                            }
+                            if (cleared) {
+                                console.log('[AD DEBUG] Reload skipped by main thread (player healthy) — early reload state cleared, can retry');
                             }
                         } else if (e.data.key == 'SimulateAds') {
                             SimulatedAdsDepth = e.data.value;
@@ -590,6 +595,7 @@ twitch-videoad.js text/javascript
         if (hasStrippedAdSegments && liveSegments.length === 0 && streamInfo.RecoverySegments && streamInfo.RecoverySegments.length > 0) {
             streamInfo.ConsecutiveAllStrippedPolls = (streamInfo.ConsecutiveAllStrippedPolls || 0) + 1;
             streamInfo.TotalAllStrippedPolls = (streamInfo.TotalAllStrippedPolls || 0) + 1;
+            if (!streamInfo.FreezeStartedAt) streamInfo.FreezeStartedAt = Date.now();
             console.log('[AD DEBUG] All segments stripped — restoring ' + streamInfo.RecoverySegments.length + ' recovery segments');
             if (streamInfo.RecoveryStartSeq !== undefined) {
                 for (let j = 0; j < lines.length; j++) {
@@ -683,6 +689,8 @@ twitch-videoad.js text/javascript
                 streamInfo.EarlyReloadCount = 0;
                 streamInfo.EarlyReloadAtPoll = 0;
                 streamInfo.SawCSAIFastPath = false;
+                streamInfo.LastCommittedBackupPlayerType = null;
+                streamInfo.FreezeStartedAt = 0;
                 console.log('[AD DEBUG] Ad detected — type: ' + (streamInfo.IsMidroll ? 'midroll' : 'preroll') + ', channel: ' + streamInfo.ChannelName + ', pod: ' + podLength + ' ad(s) (~' + (podLength * 30) + 's expected), signifiers: ' + getMatchedAdSignifiers(textStr).join(', '));
                 if (!DisableAdSpoofing) {
                     notifyAdComplete(textStr);
@@ -824,7 +832,12 @@ twitch-videoad.js text/javascript
                                     }
                                     if ((!hasAdTags(m3u8Text) && (SimulatedAdsDepth == 0 || playerTypeIndex >= SimulatedAdsDepth - 1)) || (!fallbackM3u8 && playerTypeIndex >= playerTypesToTry.length - 1)) {
                                         if ((streamInfo.ConsecutiveAllStrippedPolls || 0) >= 2 && !hasAdTags(m3u8Text)) {
-                                            console.log('[AD DEBUG] Found clean backup (' + playerType + ') during freeze — recovered without reload');
+                                            const prevType = streamInfo.LastCommittedBackupPlayerType;
+                                            if (prevType && prevType !== playerType) {
+                                                console.log('[AD DEBUG] Cycle switched to different clean type (' + playerType + ', was ' + prevType + ') during freeze — recovered without reload');
+                                            } else {
+                                                console.log('[AD DEBUG] Same backup type (' + playerType + ') became clean during freeze — natural recovery');
+                                            }
                                         }
                                         backupPlayerType = playerType;
                                         backupM3u8 = m3u8Text;
@@ -868,6 +881,7 @@ twitch-videoad.js text/javascript
             }
             if (backupM3u8) {
                 textStr = backupM3u8;
+                streamInfo.LastCommittedBackupPlayerType = backupPlayerType;
                 if (streamInfo.ActiveBackupPlayerType != backupPlayerType) {
                     streamInfo.ActiveBackupPlayerType = backupPlayerType;
                     // Auto-pin source-quality backup types (embed, site, popout) to skip failed types on next break.
@@ -933,9 +947,9 @@ twitch-videoad.js text/javascript
                 const adBreakDurationSec = streamInfo.AdBreakStartedAt ? ((Date.now() - streamInfo.AdBreakStartedAt) / 1000).toFixed(1) : '?';
                 console.log('Finished blocking ads — stripped ' + streamInfo.NumStrippedAdSegments + ' ad segments, duration: ' + adBreakDurationSec + 's (IsUsingModifiedM3U8: ' + streamInfo.IsUsingModifiedM3U8 + ')');
                 if (streamInfo.TotalAllStrippedPolls > 0) {
-                    const freezeDuration = streamInfo.TotalAllStrippedPolls * 2;
                     const reloadInfo = streamInfo.EarlyReloadAtPoll ? ', early reload at poll ' + streamInfo.EarlyReloadAtPoll : '';
-                    console.log('[AD DEBUG] Ad break stats: ' + streamInfo.TotalAllStrippedPolls + ' all-stripped polls (~' + freezeDuration + 's freeze)' + reloadInfo);
+                    const wallClockFreeze = streamInfo.FreezeStartedAt ? ((Date.now() - streamInfo.FreezeStartedAt) / 1000).toFixed(1) + 's wall-clock' : 'unknown';
+                    console.log('[AD DEBUG] Ad break stats: ' + streamInfo.TotalAllStrippedPolls + ' all-stripped polls, freeze duration: ' + wallClockFreeze + reloadInfo);
                 }
                 const hadStrippedSegments = streamInfo.NumStrippedAdSegments > 0;
                 // Only count toward false-positive guard if it was NOT a CSAI-only break.
