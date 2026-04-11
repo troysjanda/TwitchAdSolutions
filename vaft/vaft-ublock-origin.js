@@ -885,12 +885,20 @@ twitch-videoad.js text/javascript
             // for N+ polls (~Nx2s), trigger a reload to attempt fresh content. Bounded to one
             // reload per ad in the pod (e.g. 2-ad pod = up to 2 early reloads).
             const maxEarlyReloads = Math.max(1, streamInfo.PodLength || 1);
-            if (EarlyReloadPollThreshold > 0 && (streamInfo.ConsecutiveAllStrippedPolls || 0) >= EarlyReloadPollThreshold && !streamInfo.EarlyReloadTriggered && (streamInfo.EarlyReloadCount || 0) < maxEarlyReloads) {
+            // Thin recovery cache fast path: when fewer than 3 live segments are cached
+            // for fallback, the player will burn through them in seconds. Trigger early
+            // reload immediately on the first all-stripped poll instead of waiting for
+            // the normal threshold — the ~1-2s reload disruption is much shorter than
+            // the strip+buffer-rebuild stall that would otherwise occur (~10-15s).
+            const recoveryThin = (streamInfo.RecoverySegments?.length || 0) < 3;
+            const effectiveThreshold = recoveryThin ? 1 : EarlyReloadPollThreshold;
+            if (EarlyReloadPollThreshold > 0 && (streamInfo.ConsecutiveAllStrippedPolls || 0) >= effectiveThreshold && !streamInfo.EarlyReloadTriggered && (streamInfo.EarlyReloadCount || 0) < maxEarlyReloads) {
                 streamInfo.EarlyReloadTriggered = true;
                 streamInfo.EarlyReloadAwaitingResult = true;
                 streamInfo.EarlyReloadCount = (streamInfo.EarlyReloadCount || 0) + 1;
                 streamInfo.EarlyReloadAtPoll = streamInfo.TotalAllStrippedPolls || streamInfo.ConsecutiveAllStrippedPolls;
-                console.log('[AD DEBUG] Early reload triggered — ' + streamInfo.ConsecutiveAllStrippedPolls + ' consecutive all-stripped polls (~' + (streamInfo.ConsecutiveAllStrippedPolls * 2) + 's freeze) [' + streamInfo.EarlyReloadCount + '/' + maxEarlyReloads + ']');
+                const reason = recoveryThin ? ' (thin recovery cache: ' + (streamInfo.RecoverySegments?.length || 0) + ' segments)' : '';
+                console.log('[AD DEBUG] Early reload triggered — ' + streamInfo.ConsecutiveAllStrippedPolls + ' consecutive all-stripped polls' + reason + ' [' + streamInfo.EarlyReloadCount + '/' + maxEarlyReloads + ']');
                 postMessage({ key: 'ReloadPlayer' });
             }
         } else if (streamInfo.IsShowingAd) {
