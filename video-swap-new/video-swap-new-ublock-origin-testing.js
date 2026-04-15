@@ -84,6 +84,8 @@ twitch-videoad.js text/javascript
             NumStrippedAdSegments: 0,
             RecoverySegments: [],
             RecoveryStartSeq: undefined,// LOAD-BEARING: explicitly checked with `!== undefined` at the recovery injection site. Must stay undefined, not 0.
+            LastCleanNativeM3U8: null,// Full-playlist snapshot cached during non-ad polls for all-stripped recovery (mirrors TTV-AB)
+            LastCleanNativePlaylistAt: 0,
             // Ad segment cache throttling (PR #121)
             LastAdCachePruneAt: 0,
             LoggedAdCacheSize1k: false,
@@ -553,20 +555,33 @@ twitch-videoad.js text/javascript
                 streamInfo.RecoveryStartSeq = seq + Math.max(0, liveSegments.length - streamInfo.RecoverySegments.length);
             }
         }
-        // If all segments were stripped, restore cached recovery segments to prevent black screen
-        if (hasStrippedAdSegments && liveSegments.length === 0 && streamInfo.RecoverySegments && streamInfo.RecoverySegments.length > 0) {
-            console.log('[AD DEBUG] All segments stripped — restoring ' + streamInfo.RecoverySegments.length + ' recovery segments');
-            if (streamInfo.RecoveryStartSeq !== undefined) {
-                for (let j = 0; j < lines.length; j++) {
-                    if (lines[j].startsWith('#EXT-X-MEDIA-SEQUENCE:')) {
-                        lines[j] = '#EXT-X-MEDIA-SEQUENCE:' + streamInfo.RecoveryStartSeq;
-                        break;
+        // If all segments were stripped, try to prevent black screen via recovery content.
+        // Prefer the full-playlist snapshot from a recent non-ad poll (mirrors TTV-AB
+        // LastCleanNativeM3U8 approach). Falls back to the per-segment cache if the
+        // snapshot is stale or missing.
+        if (hasStrippedAdSegments && liveSegments.length === 0) {
+            // Primary: fresh full-playlist snapshot (< 1.5s old, must not itself contain ad markers)
+            const snapshotAge = streamInfo.LastCleanNativePlaylistAt ? (Date.now() - streamInfo.LastCleanNativePlaylistAt) : Infinity;
+            if (streamInfo.LastCleanNativeM3U8 && snapshotAge <= 1500 && !hasAdTags(streamInfo.LastCleanNativeM3U8)) {
+                console.log('[AD DEBUG] All segments stripped — reusing last clean native playlist (' + snapshotAge + 'ms old)');
+                streamInfo.IsStrippingAdSegments = hasStrippedAdSegments;
+                return streamInfo.LastCleanNativeM3U8;
+            }
+            // Fallback: per-segment recovery cache (existing behavior)
+            if (streamInfo.RecoverySegments && streamInfo.RecoverySegments.length > 0) {
+                console.log('[AD DEBUG] All segments stripped — restoring ' + streamInfo.RecoverySegments.length + ' recovery segments');
+                if (streamInfo.RecoveryStartSeq !== undefined) {
+                    for (let j = 0; j < lines.length; j++) {
+                        if (lines[j].startsWith('#EXT-X-MEDIA-SEQUENCE:')) {
+                            lines[j] = '#EXT-X-MEDIA-SEQUENCE:' + streamInfo.RecoveryStartSeq;
+                            break;
+                        }
                     }
                 }
-            }
-            for (let j = 0; j < streamInfo.RecoverySegments.length; j++) {
-                lines.push(streamInfo.RecoverySegments[j].extinf);
-                lines.push(streamInfo.RecoverySegments[j].url);
+                for (let j = 0; j < streamInfo.RecoverySegments.length; j++) {
+                    lines.push(streamInfo.RecoverySegments[j].extinf);
+                    lines.push(streamInfo.RecoverySegments[j].url);
+                }
             }
         }
         streamInfo.IsStrippingAdSegments = hasStrippedAdSegments;
@@ -612,6 +627,12 @@ twitch-videoad.js text/javascript
             }
         }
         const haveAdTags = hasAdTags(textStr) || (SimulatedAdsDepth > 0 && (!streamInfo.BackupEncodings || !streamInfo.BackupEncodings.includes(url) || SimulatedAdsDepth - 1 > streamInfo.BackupEncodingsPlayerTypeIndex));
+        // Cache the clean main stream m3u8 for all-stripped recovery fallback.
+        // Mirrors TTV-AB's LastCleanNativeM3U8 mechanism.
+        if (!haveAdTags && !streamInfo.BackupEncodings && textStr.indexOf('#EXTINF') !== -1) {
+            streamInfo.LastCleanNativeM3U8 = textStr;
+            streamInfo.LastCleanNativePlaylistAt = Date.now();
+        }
         if (streamInfo.BackupEncodings) {
             const streamM3u8Url = streamInfo.Encodings.match(/^https:.*\.m3u8$/m)?.[0];
             const streamM3u8Response = await realFetch(streamM3u8Url);
