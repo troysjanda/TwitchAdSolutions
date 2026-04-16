@@ -1501,11 +1501,34 @@
             return;
         }
         if (isReload) {
-            // Skip reload if the player is already healthy — avoids disrupting smooth playback
+            // Skip reload if the player is already healthy — avoids disrupting smooth playback.
+            // But if we're way behind live edge (e.g. after a long ad break), proceed with reload to reset latency.
             const video = player.getHTMLVideoElement?.();
             if (video && video.readyState >= 3 && !video.paused && !video.ended) {
-                console.log('[AD DEBUG] Skipping reload — player healthy (readyState=' + video.readyState + ', playing)');
-                return;
+                let latencySec = 0;
+                let latencyKnown = false;
+                try {
+                    if (video.seekable && video.seekable.length > 0) {
+                        const seekableEnd = video.seekable.end(video.seekable.length - 1);
+                        if (Number.isFinite(seekableEnd)) {
+                            const calc = Math.max(0, seekableEnd - video.currentTime);
+                            // Sanity cap: values >1h indicate garbage from the Media Source API
+                            // (seen right after a reload while the seekable range is in a transient state).
+                            if (calc < 3600) {
+                                latencySec = calc;
+                                latencyKnown = true;
+                            }
+                        }
+                    }
+                } catch (e) {}
+                if (!latencyKnown) {
+                    console.log('[AD DEBUG] Latency unknown (seekable unavailable) — proceeding with reload');
+                } else if (latencySec > 7) {
+                    console.log('[AD DEBUG] Player playing but ' + latencySec.toFixed(1) + 's behind live — proceeding with reload to reset latency');
+                } else {
+                    console.log('[AD DEBUG] Skipping reload — player healthy (readyState=' + video.readyState + ', playing, latency=' + latencySec.toFixed(1) + 's)');
+                    return;
+                }
             }
         }
         if (isReload) {
