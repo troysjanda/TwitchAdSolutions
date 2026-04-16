@@ -734,6 +734,7 @@ twitch-videoad.js text/javascript
                 streamInfo.CycleRescuedThisBreak = false;
                 streamInfo.LastCommittedBackupPlayerType = null;
                 streamInfo.FreezeStartedAt = 0;
+                streamInfo.CsaiOnlyThisBreak = false;// Reset sticky CSAI flag for new break
                 console.log('[AD DEBUG] Ad detected — type: ' + (streamInfo.IsMidroll ? 'midroll' : 'preroll') + ', channel: ' + streamInfo.ChannelName + ', pod: ' + podLength + ' ad(s) (~' + (podLength * 30) + 's expected), signifiers: ' + getMatchedAdSignifiers(textStr).join(', '));
                 postMessage({
                     key: 'UpdateAdBlockBanner',
@@ -770,6 +771,44 @@ twitch-videoad.js text/javascript
                     key: 'ReloadPlayer'
                 });
             }
+            // Sticky CSAI fast path: if a prior poll in THIS break already confirmed the break
+            // is CSAI-only (all segments live on poll 1), stay on the fast path for the rest
+            // of the break. stripAdSegments still handles any real EXTINF ad segments that
+            // show up on later polls (they get cached and the fetch hook returns BLANK_MP4),
+            // so ads are blocked even without the backup switch. Skipping backup search for
+            // the whole CSAI break saves ~20 wasted fetches per break — the backup wouldn't
+            // help anyway since every player type has the same CSAI ads. Flag is cleared
+            // only at break end (IsShowingAd=false path).
+            if (streamInfo.CsaiOnlyThisBreak && !streamInfo.IsUsingModifiedM3U8) {
+                if (IsAdStrippingEnabled) {
+                    textStr = stripAdSegments(textStr, false, streamInfo);
+                }
+                // Early reload during prolonged freeze — mirrors the check in the normal
+                // backup-search path which we'd otherwise skip entirely by returning early
+                // from the sticky path. Without this, heavy SSAI breaks on CSAI-confirmed
+                // streams leave the player replaying the thin recovery cache for the full
+                // break duration (observed: 35.9s freeze on pod-1 break, 3 all-stripped
+                // polls, 1-segment recovery cache).
+                // Bounded to maxEarlyReloads per ad in pod so reload loops are impossible.
+                const stickyMaxEarlyReloads = Math.max(1, streamInfo.PodLength || 1);
+                if (EarlyReloadPollThreshold > 0 && (streamInfo.ConsecutiveAllStrippedPolls || 0) >= EarlyReloadPollThreshold && !streamInfo.EarlyReloadTriggered && (streamInfo.EarlyReloadCount || 0) < stickyMaxEarlyReloads) {
+                    streamInfo.EarlyReloadTriggered = true;
+                    streamInfo.EarlyReloadAwaitingResult = true;
+                    streamInfo.EarlyReloadCount = (streamInfo.EarlyReloadCount || 0) + 1;
+                    streamInfo.EarlyReloadAtPoll = streamInfo.TotalAllStrippedPolls || streamInfo.ConsecutiveAllStrippedPolls;
+                    console.log('[AD DEBUG] Early reload triggered (sticky path) — ' + streamInfo.ConsecutiveAllStrippedPolls + ' consecutive all-stripped polls (~' + (streamInfo.ConsecutiveAllStrippedPolls * 2) + 's freeze) [' + streamInfo.EarlyReloadCount + '/' + stickyMaxEarlyReloads + ']');
+                    postMessage({ key: 'ReloadPlayer' });
+                }
+                postMessage({
+                    key: 'UpdateAdBlockBanner',
+                    isMidroll: streamInfo.IsMidroll,
+                    hasAds: streamInfo.IsShowingAd,
+                    isStrippingAdSegments: streamInfo.IsStrippingAdSegments,
+                    numStrippedAdSegments: streamInfo.NumStrippedAdSegments,
+                    activeBackupPlayerType: null
+                });
+                return textStr;
+            }
             // CSAI fast path: if all segments in the main stream are live, skip backup search.
             // CSAI ads are delivered outside the m3u8 — the main stream segments are clean.
             // Just strip tracking URLs and return the main stream directly, avoiding the
@@ -783,6 +822,7 @@ twitch-videoad.js text/javascript
                 }
             }
             if (!hasNonLiveSegment && !streamInfo.IsUsingModifiedM3U8) {
+                streamInfo.CsaiOnlyThisBreak = true;// Mark break as confirmed CSAI so subsequent polls stay on the fast path
                 console.log('[AD DEBUG] CSAI fast path — all segments live, skipping backup search');
                 if (IsAdStrippingEnabled) {
                     textStr = stripAdSegments(textStr, false, streamInfo);
@@ -929,7 +969,14 @@ twitch-videoad.js text/javascript
                 backupPlayerType = FallbackPlayerType;
                 backupM3u8 = fallbackM3u8;
             }
-            if (backupM3u8) {
+            // Stale-commit guard: multiple processM3U8 calls can be in flight concurrently for
+            // the same streamInfo (one per m3u8 poll). If this backup search started during the
+            // ad break but completed AFTER a later poll already ran the end-of-break reset
+            // (IsShowingAd = false, ActiveBackupPlayerType = null), committing the backup here
+            // would overwrite the cleared state and feed stale playlist data to the player,
+            // causing buffer reconciliation failures and a forced reload. Check IsShowingAd
+            // here to discard stale results.
+            if (backupM3u8 && streamInfo.IsShowingAd) {
                 textStr = backupM3u8;
                 streamInfo.LastCommittedBackupPlayerType = backupPlayerType;
                 if (streamInfo.ActiveBackupPlayerType != backupPlayerType) {
@@ -940,6 +987,8 @@ twitch-videoad.js text/javascript
                     }
                     console.log(`Blocking${(streamInfo.IsMidroll ? ' midroll ' : ' ')}ads (${backupPlayerType}) — backup found in ${Date.now() - backupSearchStart}ms`);
                 }
+            } else if (backupM3u8 && !streamInfo.IsShowingAd) {
+                console.log('[AD DEBUG] Discarded stale backup commit (' + backupPlayerType + ', ' + (Date.now() - backupSearchStart) + 'ms) — break ended during search');
             } else {
                 console.log('[AD DEBUG] No ad-free backup stream found — ads may leak. Tried: ' + playerTypesToTry.slice(startIndex).join(', '));
             }
@@ -1016,6 +1065,7 @@ twitch-videoad.js text/javascript
                 streamInfo.EarlyReloadAwaitingResult = false;
                 streamInfo.EarlyReloadAtPoll = 0;
                 streamInfo.TotalAllStrippedPolls = 0;
+                streamInfo.CsaiOnlyThisBreak = false;
                 // CSAI-only ad break: no segments were stripped — skip reload entirely.
                 if (!hadStrippedSegments) {
                     console.log('[AD DEBUG] CSAI-only ad break (stripped 0) — clearing backup without player action');
