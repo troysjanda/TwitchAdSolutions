@@ -1204,6 +1204,7 @@
                 streamInfo.EarlyReloadAwaitingResult = false;
                 streamInfo.EarlyReloadAtPoll = 0;
                 streamInfo.TotalAllStrippedPolls = 0;
+                streamInfo.HasLoggedAdAttributes = false;
                 streamInfo.SawCSAIFastPath = false;// Clear sticky CSAI flag for next break
                 // Auto-escalate cooldown: if 3+ reloads in last 2 min, triple the cooldown to reduce cascade pressure
                 if (!streamInfo.ReloadTimestamps) streamInfo.ReloadTimestamps = [];
