@@ -913,6 +913,12 @@
                 // from the sticky path. Without this, heavy SSAI breaks on CSAI-confirmed
                 // streams leave the player replaying the thin recovery cache for the full
                 // break duration. Bounded to maxEarlyReloads per ad in pod.
+                // Check early reload result from previous poll (sticky path returns before the normal-path check)
+                if (streamInfo.EarlyReloadAwaitingResult) {
+                    streamInfo.EarlyReloadAwaitingResult = false;
+                    console.log('[AD DEBUG] Early reload result (sticky path): still ads — continuing recovery loop');
+                    streamInfo.EarlyReloadTriggered = false;
+                }
                 const stickyRecoveryThin = (streamInfo.RecoverySegments?.length || 0) < 3;
                 const stickyMaxEarlyReloads = stickyRecoveryThin ? Math.max(2, streamInfo.PodLength || 1) : Math.max(1, streamInfo.PodLength || 1);
                 const stickyEffectiveThreshold = stickyRecoveryThin ? 1 : EarlyReloadPollThreshold;
