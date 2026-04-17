@@ -34,6 +34,8 @@ twitch-videoad.js text/javascript
         scope.AdSegmentCache = new Map();
         scope.AllSegmentsAreAdSegments = false;
         scope.ReloadPlayerAfterAd = true;// After the ad finishes do a player reload instead of pause/play
+        scope.ReloadCooldownSeconds = 30;// Minimum seconds between reloads — breaks CSAI cascades triggered by reload
+        scope.EarlyReloadPollThreshold = 5;// All-stripped polls before early reload (~2s each, so 5 = ~10s; 0 = disable)
         scope.PinBackupPlayerType = false;// If true, remember which backup player type worked and try it first on next ad break
         scope.StreamInfoMaxAgeMs = 30 * 60 * 1000;
     }
@@ -93,11 +95,18 @@ twitch-videoad.js text/javascript
             HasCheckedUnknownTags: false,
             HasLoggedAdAttributes: false,
             HasLoggedCsaiFastPath: false,
+            // Early reload + cooldown
+            ConsecutiveAllStrippedPolls: 0,
+            EarlyReloadTriggered: false,
+            LastPlayerReload: 0,
+            ReloadTimestamps: [],
         };
     }
     const loggedCsaiTypes = new Set();
     let twitchPlayerAndState = null;
     let localStorageHookFailed = false;
+    let lastReloadTimestamp = 0;
+    let reloadTimestamps = [];
     const twitchWorkers = [];
     const workerStringConflicts = [
         'twitch',
@@ -219,6 +228,8 @@ twitch-videoad.js text/javascript
                         self.__tasPruneInterval = setInterval(pruneStreamInfos, 5 * 60 * 1000);
                     }
                     ReloadPlayerAfterAd = ${ReloadPlayerAfterAd};
+                    ReloadCooldownSeconds = ${ReloadCooldownSeconds};
+                    EarlyReloadPollThreshold = ${EarlyReloadPollThreshold};
                     PinBackupPlayerType = ${PinBackupPlayerType};
                     OPT_FORCE_ACCESS_TOKEN_PLAYER_TYPE = '${OPT_FORCE_ACCESS_TOKEN_PLAYER_TYPE}';
                     gql_device_id = ${gql_device_id ? "'" + gql_device_id + "'" : null};
@@ -565,6 +576,19 @@ twitch-videoad.js text/javascript
         // LastCleanNativeM3U8 approach). Falls back to the per-segment cache if the
         // snapshot is stale or missing.
         if (hasStrippedAdSegments && liveSegments.length === 0) {
+            streamInfo.ConsecutiveAllStrippedPolls = (streamInfo.ConsecutiveAllStrippedPolls || 0) + 1;
+            // Early reload: if recovery cache is thin (<3 segments), fire on first poll;
+            // otherwise wait for EarlyReloadPollThreshold polls (~10s). Budget is 2 when thin.
+            const recoveryThin = (streamInfo.RecoverySegments?.length || 0) < 3;
+            const effectiveThreshold = recoveryThin ? 1 : EarlyReloadPollThreshold;
+            const maxEarlyReloads = recoveryThin ? 2 : 1;
+            if (EarlyReloadPollThreshold > 0 && streamInfo.ConsecutiveAllStrippedPolls >= effectiveThreshold && !streamInfo.EarlyReloadTriggered && (streamInfo.EarlyReloadCount || 0) < maxEarlyReloads) {
+                streamInfo.EarlyReloadTriggered = true;
+                streamInfo.EarlyReloadCount = (streamInfo.EarlyReloadCount || 0) + 1;
+                const reason = recoveryThin ? ' (thin recovery cache: ' + (streamInfo.RecoverySegments?.length || 0) + ' segments)' : '';
+                console.log('[AD DEBUG] Early reload triggered — ' + streamInfo.ConsecutiveAllStrippedPolls + ' consecutive all-stripped polls' + reason + ' [' + streamInfo.EarlyReloadCount + '/' + maxEarlyReloads + ']');
+                postMessage({ key: 'UboReloadPlayer' });
+            }
             // Primary: fresh full-playlist snapshot (< 1.5s old, must not itself contain ad markers)
             const snapshotAge = streamInfo.LastCleanNativePlaylistAt ? (Date.now() - streamInfo.LastCleanNativePlaylistAt) : Infinity;
             if (streamInfo.LastCleanNativeM3U8 && snapshotAge <= 1500 && !hasAdTags(streamInfo.LastCleanNativeM3U8)) {
@@ -658,6 +682,9 @@ twitch-videoad.js text/javascript
                             streamInfo.BackupEncodingsStatus.clear();
                             streamInfo.BackupEncodingsPlayerTypeIndex = -1;
                             streamInfo.CleanPlaylistCount = 0;
+                            streamInfo.ConsecutiveAllStrippedPolls = 0;
+                            streamInfo.EarlyReloadTriggered = false;
+                            streamInfo.EarlyReloadCount = 0;
                             streamInfo.RequestedAds.clear();
                             streamInfo.HasLoggedAdAttributes = false;
                             postMessage({key: ReloadPlayerAfterAd ? 'UboReloadPlayer' : 'UboPauseResumePlayer'});
@@ -745,7 +772,7 @@ twitch-videoad.js text/javascript
                         realFetch(url, options).then(function(response) {
                             processAfter(response);
                         })['catch'](function(err) {
-                            console.log('fetch hook err ' + err);
+                            if (err?.name !== 'AbortError') console.log('fetch hook err ' + err);
                             reject(err);
                         });
                     });
@@ -1131,6 +1158,23 @@ twitch-videoad.js text/javascript
         if (isPausePlay && wasPaused) {
             return;
         }
+        // Reload cooldown — skip if last reload was too recent (breaks CSAI cascades)
+        if (!isPausePlay && ReloadCooldownSeconds > 0) {
+            const now = Date.now();
+            const cooldownMs = ReloadCooldownSeconds * 1000;
+            if (lastReloadTimestamp && now - lastReloadTimestamp < cooldownMs) {
+                console.log('[AD DEBUG] Skipping reload — cooldown active (' + Math.round((cooldownMs - (now - lastReloadTimestamp)) / 1000) + 's remaining)');
+                return;
+            }
+            reloadTimestamps.push(now);
+            const fiveMinAgo = now - 300000;
+            while (reloadTimestamps.length > 0 && reloadTimestamps[0] < fiveMinAgo) { reloadTimestamps.shift(); }
+            if (reloadTimestamps.length >= 3 && ReloadCooldownSeconds < 90) {
+                ReloadCooldownSeconds = 90;
+                console.log('[AD DEBUG] Auto-escalated reload cooldown to 90s (3+ reloads in 5 minutes)');
+            }
+            lastReloadTimestamp = now;
+        }
         if (isPausePlay) {
             player.pause();
             player.play()?.catch?.(() => {});
@@ -1306,6 +1350,14 @@ twitch-videoad.js text/javascript
         const lsPinBackup = localStorage.getItem('twitchAdSolutions_pinBackupPlayerType');
         if (lsPinBackup !== null) {
             PinBackupPlayerType = lsPinBackup === 'true';
+        }
+        const lsCooldown = parseInt(localStorage.getItem('twitchAdSolutions_reloadCooldownSeconds'));
+        if (!isNaN(lsCooldown) && lsCooldown >= 0) {
+            ReloadCooldownSeconds = lsCooldown;
+        }
+        const lsEarlyReload = parseInt(localStorage.getItem('twitchAdSolutions_earlyReloadPollThreshold'));
+        if (!isNaN(lsEarlyReload) && lsEarlyReload >= 0) {
+            EarlyReloadPollThreshold = lsEarlyReload;
         }
         const lsHideAdOverlay = localStorage.getItem('twitchAdSolutions_hideAdOverlay');
         if (lsHideAdOverlay === 'true') {
