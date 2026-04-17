@@ -1,5 +1,21 @@
 ## Unreleased
 
+## v60.0.0 (2026-04-17)
+
+### New Features
+- **Soft reload for post-ad player restart** — replace hard reload (`isNewMediaPlayerInstance: true, refreshAccessToken: true`) with soft reload (both `false`). Keeps the player instance and cached access token alive; just nudges the player to refetch the m3u8. Reduces post-ad transition from ~1-3s black screen to ~0.5-1s with no visible teardown. Ported from TTV-AB's v6.3.9 / v6.4.3 pattern (vaft) (#144)
+- **Early reload on prolonged freeze + reload cooldown** — port vaft's freeze mitigation to video-swap-new. When all segments stripped for N polls (default 5, or 1 when recovery cache is thin), trigger an early reload. 30s reload cooldown with auto-escalation to 90s after 3+ reloads in 5 minutes. Configurable via `twitchAdSolutions_earlyReloadPollThreshold` / `twitchAdSolutions_reloadCooldownSeconds` localStorage (video-swap-new) (#133)
+
+### Bug Fixes
+- **Remove promo/Turbo overlay hide** — last remaining use of `.player-overlay-background`. That class is Twitch's generic modal scrim used for content gates, mature warnings, subscription gates, and error dialogs — not just ad promos. The href pre-filter narrowed the trigger, but not safely enough. User reports of "black screen + controls disappear + stream freeze" pointed to overlay-hide false positives. SDA wrapper hide (exact `[data-test-selector]`) retained (vaft) (#143)
+- **Remove ad-break-card text-match hide** — scanned `span/p/h1/h2/h3` for "taking an ad break"/"stick around" phrases, then walked up via fuzzy `[class*="overlay"]` + `parentElement` fallback. Could hide player controls if Twitch rendered those phrases inside the controls container. TTV-AB doesn't match this text at all; no upstream precedent to mirror safely (vaft) (#141)
+- **Remove `autoplay` from video-swap-new backup player types** — same issue vaft fixed in PR #110: autoplay variants get stuck in loading circles when transitioning back. Replaced with `embed, popout, mobile_web` (video-swap-new) (#132)
+- **Guard null `lowResInf` in HEVC→AVC codec substitution** — optional-chain regex match could return `undefined`, and the next line called `.substring()` without a guard, throwing `TypeError` and aborting the substitution loop. Skip the iteration instead (video-swap-new) (#135)
+- **Clear `RequestedAds` Set on end-of-break** — without clearing, the Set accumulated every ad URL seen across a session. On long streams with many breaks, grew unboundedly. vaft already cleared it; video-swap-new was missing the cleanup (video-swap-new) (#137)
+- **Fix unhandled promise rejection in ad .ts prefetch** — `fetch().then(r => { r.blob() })` discarded the inner promise; `blob()` rejections surfaced as unhandled. Also video-swap-new was missing `.catch()` entirely. Return `response.blob()` so both rejections funnel to the outer catch (vaft + video-swap-new) (#136)
+- **Reset `HasLoggedAdAttributes` on end-of-break** — flag was set `true` on first detection but never reset. Only the first ad break of a session logged the attribute list. If Twitch adds a new tracking attribute mid-session, it went unnoticed. Now logs once per break (vaft + video-swap-new) (#138)
+- **Silence benign cancel errors in video-swap-new fetch hook** — backup stream switches cancel in-flight fetches. Chrome surfaces `AbortError`, Firefox's IVS wrapper surfaces `Error('Request cancelled')`. Both are lifecycle noise, not errors. Filter covers `err.name === 'AbortError'` and message matching `/cancel|abort/i` (video-swap-new) (#140, #142)
+
 ## v59.1.0 (2026-04-17)
 
 ### Bug Fixes
