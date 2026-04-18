@@ -1,5 +1,10 @@
 ## Unreleased
 
+## v60.2.0 (2026-04-18)
+
+### Bug Fixes
+- **Audio/video desync after ad breaks** — PR #144's universal soft reload preserved the MediaSource buffer across reloads, so timestamp weirdness from `BLANK_MP4` injection and recovery segment replay accumulated over time, causing audio/video drift after several ad breaks. Post-ad reload now uses hard reload (new MediaSource, fresh access token) whenever strip or modify activity occurred. HEVC force reload stays soft (codec change only, no strip). Pure CSAI breaks still skip the reload entirely (vaft) (#148)
+
 ## v60.1.0 (2026-04-18)
 
 ### Bug Fixes
