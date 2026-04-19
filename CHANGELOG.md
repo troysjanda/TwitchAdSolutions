@@ -1,6 +1,14 @@
 ## Unreleased
 
-## v60.2.0 (2026-04-18)
+## v60.3.0 (2026-04-20)
+
+### New Features
+- **`PreferLowQualityBackup` hybrid safety net** — opt-in via `localStorage.twitchAdSolutions_preferLowQualityBackup = 'true'`. Keeps the sticky CSAI fast path (default behavior, no regression on clean breaks), but adds two safety nets for SSAI-heavy freezes: (1) sticky escape hatch — after 6 consecutive all-stripped polls (~12s) inside the sticky path with the early-reload budget exhausted, fall through to backup search instead of staying stuck; (2) autoplay (360p) appended as a last-resort backup player type when all Source types (embed/site/popout/mobile_web) are ad-laden. Autoplay stays last so the 360p quality hit only occurs when no Source backup is available. Includes diagnostic logs for escape hatch firing and post-escape backup commit (vaft) (#149)
+
+### Bug Fixes
+- **Loading-circle health check now uses hard reload** — PR #96's health-check reload was still soft after the PR #144 soft-reload switch, meaning a loading-circle recovery kept the same dirty MediaSource buffer that caused the circle. Route via `kind: 'early'` so the health check gets a fresh MediaSource and access token. Matches the early-reload path's hard-reload behavior (vaft) (#149)
+
+
 
 ### Bug Fixes
 - **Audio/video desync after ad breaks** — PR #144's universal soft reload preserved the MediaSource buffer across reloads, so timestamp weirdness from `BLANK_MP4` injection and recovery segment replay accumulated over time, causing audio/video drift after several ad breaks. Post-ad reload now uses hard reload (new MediaSource, fresh access token) whenever strip or modify activity occurred. HEVC force reload stays soft (codec change only, no strip). Pure CSAI breaks still skip the reload entirely (vaft) (#148)
