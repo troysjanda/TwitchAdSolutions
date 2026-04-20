@@ -1,5 +1,11 @@
 ## Unreleased
 
+## v60.4.0 (2026-04-20)
+
+### Bug Fixes
+- **De-escalate auto-boosted reload cooldown when burst subsides** — auto-escalation from 30s → 90s (triggered by 3+ reloads in 5 minutes) was permanent for the page lifetime; `ReloadCooldownSeconds` never reverted even after `reloadTimestamps` aged out. A transient bad period (e.g. one SSAI-heavy 2-minute window) permanently stiffened the cooldown for the rest of the session, blocking legitimate freeze-recovery reloads on subsequent breaks. Track the pre-escalation value and revert when the sliding-window count drops below 3 (video-swap-new) (#150)
+- **Match sticky path's thin-cache early-reload budget on normal path** — PR #134 bumped the sticky CSAI path's early-reload budget to `max(2, PodLength)` when the recovery cache has <3 segments, but the normal backup-search path was left at `max(1, PodLength)` with the same thin-cache threshold. On a 1-ad pod with thin cache, a single misdirected reload would exhaust the budget; now gets a second chance to match sticky-path behavior (vaft) (#151)
+
 ## v60.3.0 (2026-04-20)
 
 ### New Features
