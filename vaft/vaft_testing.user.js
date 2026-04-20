@@ -1835,8 +1835,10 @@
                     } catch {}
                 }, 1500);
             }
-            // Always restore muted/volume state after reload — Chrome autoplay policy can force muted
-            if (currentQualityLS || currentMutedLS || currentVolumeLS) {
+            // Always restore muted/volume state after reload — Chrome autoplay policy can force muted.
+            // Block must always run: if Twitch hasn't written LS values yet (fresh session, private mode,
+            // cleared cache), the video still needs unmute after Chrome's autoplay mute on reload.
+            {
                 setTimeout(() => {
                     try {
                         if (currentQualityLS) {
