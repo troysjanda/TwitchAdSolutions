@@ -1,5 +1,16 @@
 ## Unreleased
 
+## v61.0.0 (2026-04-21)
+
+### Bug Fixes
+- **Narrow AdSignifiers to 4 markers to reduce post-ad residual false positives** — TTV-AB's CHANGELOG flagged that broad ad-marker detection caused false re-entry into ad-blocking state: residual metadata tags briefly persist after ad-end, and any one would trigger a new ad cycle. Dropped 5 signifiers known to linger post-ad (`X-TV-TWITCH-AD`, `SCTE35-OUT`, `twitch-stream-source`, `twitch-trigger`, `twitch-ad-quartile`); kept 4 ad-start markers (`stitched-ad`, `EXT-X-CUE-OUT`, `twitch-stitched-ad`, `twitch-maf-ad`). URL-pattern detection unchanged (vaft + video-swap-new) (#152)
+- **Hard-seek to live edge after hard reload when drift > 5s** — post-ad hard reload fires correctly (new MediaSource + token) but drift correction at 1.1x playback would take 5-10 minutes to catch up 30-60s of A/V timestamp desync accumulated from strip+BLANK_MP4+recovery activity. When `liveEdge - currentTime > 5s`, hard-seek `video.currentTime = seekable.end` to instantly re-align audio and video decoder state. Small drift still uses gradual 1.1x catch-up; soft reloads unchanged (vaft) (#154)
+- **Always run post-reload recovery (unmute fix)** — the post-reload setTimeout was gated on captured localStorage values; if Twitch hadn't written `video-quality`/`video-muted`/`volume` at reload time (fresh session, private mode, cleared cache), the entire recovery block skipped — including the Chrome-autoplay unmute. Remove the outer guard so recovery always runs; LS restore stays individually guarded inside the callback (vaft + video-swap-new) (#155)
+- **Respect user mute intent in post-reload unmute** — the force-unmute (`videos[0].muted = false`) was unconditional. If a user intentionally muted the stream before an ad break, a reload would override their intent and unmute them. Check `currentMutedLS` for Twitch's `'{"default":true}'` marker (written when user mutes via UI); if present, skip the unmute. Chrome autoplay mute still clears because no-LS / `'{"default":false}'` cases don't match the marker (vaft + video-swap-new) (#156)
+
+### Diagnostic Logging
+- **Log potential ad markers not in AdSignifiers** — scans playlist during ad-break processing for `EXT-X-DATERANGE:CLASS="twitch-*"` classes and `SCTE35-*`/`EXT-X-CUE-*` tags. Candidates not in the active signifier list are logged once per break as `[AD DEBUG] Potential ad markers seen but not in AdSignifiers: ... (candidates for future inclusion)`. Helps identify new markers Twitch introduces without guessing — add them only after observing real usage. Tracked via `HasLoggedUnknownSignifiers` (mirrors `HasLoggedAdAttributes` once-per-break pattern), reset at end-of-break (vaft + video-swap-new) (#153)
+
 ## v60.4.0 (2026-04-20)
 
 ### Bug Fixes

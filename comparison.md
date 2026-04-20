@@ -6,7 +6,8 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 6.0
 
 | Feature | Release | Testing | TTV-AB | pixeltris |
 |---|---|---|---|---|
-| Multiple ad signifiers | Yes (11) | Yes (11) | Yes (6 + URL patterns) | No (1) |
+| Multiple ad signifiers | Yes (4) | Yes (4) | No (1 + URL patterns) | No (1) |
+| Unknown-signifier diagnostic | Yes | Yes | No | No |
 | SCTE-35 CUE-OUT/CUE-IN | Yes | Yes | Yes | No |
 | Ad segment URL patterns | Yes | Yes | Yes | No |
 
@@ -28,6 +29,8 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 6.0
 | Dead backup detection | Yes | Yes | No | No |
 | Post-ad resume retry | Yes | Yes | Yes | No |
 | Muted state restore | Yes | Yes | Yes | No |
+| Respect user mute intent | Yes | Yes | No | No |
+| Post-hard-reload seek-to-live (drift >5s) | Yes | Yes | No | No |
 | Player error auto-recovery | No | Yes | Yes | No |
 
 ## Player Stability
@@ -70,6 +73,7 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 6.0
 | ReloadCooldownSeconds | Yes | Yes | N/A | No |
 | DisableReloadCap | Yes | Yes | N/A | No |
 | DriftCorrectionRate | Yes | Yes | N/A | No |
+| PreferLowQualityBackup (hybrid safety net) | Yes | Yes | N/A | No |
 | Config logged on load | Yes | Yes | No | No |
 
 ## Debug Logging
