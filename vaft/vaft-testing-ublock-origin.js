@@ -1282,9 +1282,12 @@ twitch-videoad.js text/javascript
                 if (cycleRescuedCleanly) {
                     console.log('[AD DEBUG] Cycle rescue handled the break cleanly — skipping end-of-break reload');
                 }
-                // Reload if backup was used AND segments were stripped (need clean state). Otherwise, respect ReloadPlayerAfterAd + cooldown.
-                const shouldReload = streamInfo.IsUsingModifiedM3U8 || (ReloadPlayerAfterAd && hadStrippedSegments && !tooSoonSinceLastReload && !cycleRescuedCleanly);
-                console.log('[AD DEBUG] Reload decision: shouldReload=' + shouldReload + ' IsUsingModifiedM3U8=' + streamInfo.IsUsingModifiedM3U8 + ' hadStripped=' + hadStrippedSegments + ' tooSoon=' + tooSoonSinceLastReload + ' cooldown=' + effectiveCooldown + 's');
+                // Reload if backup was used AND segments were stripped (need clean state).
+                // Post-ad reload bypasses cooldown: it's a buffer flush tied to natural break
+                // end, not a cascade-risk retry. The ad break cycle itself rate-limits this
+                // path (once per break).
+                const shouldReload = streamInfo.IsUsingModifiedM3U8 || (ReloadPlayerAfterAd && hadStrippedSegments && !cycleRescuedCleanly);
+                console.log('[AD DEBUG] Reload decision: shouldReload=' + shouldReload + ' IsUsingModifiedM3U8=' + streamInfo.IsUsingModifiedM3U8 + ' hadStripped=' + hadStrippedSegments + ' tooSoon=' + tooSoonSinceLastReload + ' cooldown=' + effectiveCooldown + 's' + (tooSoonSinceLastReload && shouldReload ? ' (post-ad cooldown bypassed)' : ''));
                 if (shouldReload) {
                     streamInfo.ReloadTimestamps.push(Date.now());// Only track actual reloads, not skipped ones
                     streamInfo.IsUsingModifiedM3U8 = false;
