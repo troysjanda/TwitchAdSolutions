@@ -1,5 +1,17 @@
 ## Unreleased
 
+## v62.0.0 (2026-04-21)
+
+### New Features
+- **`PreferLowQualityBackup` default-on** — flip the hybrid safety net from opt-in (default `false`) to default on (default `true`). Field-tested across winton_ow2, aspen, junothemartian, august, karq, jwantedl, l0ok_at_me. Clean CSAI-path breaks pass through untouched (no regression); heavy-SSAI 2-ad pods that would otherwise freeze ~36s now recover via escape hatch + backup search. Preserves opt-out via `twitchAdSolutions_preferLowQualityBackup=false`. Also reduces support burden — users hitting SSAI freezes no longer need to discover the flag (vaft) (#159)
+- **Worker crash recovery for IVS WASM worker** — IVS WASM worker can fire `RuntimeError: index out of bounds` and die silently. Single crash produces multiple error events; add dedupe flag pattern (borrowed from TTV-AB v6.3.4). On first error, trigger hard reload via the main reload path — Twitch re-spawns the worker as part of the new player instance. Reuses existing reload cooldown for loop prevention (vaft + video-swap-new) (#160)
+
+### Bug Fixes
+- **Lower sticky CSAI escape hatch threshold from 6 to 4 polls** — field logs showed 2-ad heavy-SSAI breaks exhausting the early-reload budget then sitting in the recovery loop for 3+ more polls, ending naturally at poll 5 before the old threshold of 6 could fire. Lower to 4 polls (~8s stuck) — budget-exhausted recovery is clearly unproductive by that point, fall through to backup search sooner (vaft) (#158)
+- **Full Response shape in worker-bridge fetch** — fabricated Response objects in the worker-bridge FetchResponse path were missing native `url`, `ok`, `redirected`, `type` properties. IVS WASM validates these on Spade/tracking requests and throws internal NetworkError when they're missing, halting playback. Add the four fields to the payload; apply via `Object.defineProperty` on the reconstructed Response. Ported from TTV-AB v6.3.5 (vaft + video-swap-new) (#161)
+- **Exempt post-ad reload from CSAI cascade cooldown** — post-ad reload fires once per break at natural break end; the ad break cycle itself rate-limits the path. Field case on karq: loading-circle reload fired mid-break at t=0, break ended at t=27, post-ad reload was blocked by 30s cooldown, player stalled at `readyState=2 paused=true` until buffer monitor seeked. Drop the cooldown check from the post-ad path; cascade-risk paths (buffer monitor auto-reload, in-break retries) still respect it (vaft) (#162)
+- **Reload to restore Source quality after autoplay (360p) fallback** — first field observation on l0ok_at_me preroll: all 4 Source types were ad-laden, autoplay committed as last-resort backup, but the end-of-break CSAI-only path cleared the backup flag without triggering a reload. Player's access token stayed autoplay-scoped (variant ladder is 360p-only), so viewer stayed stuck at 360p until a future break forced a reload. Add an autoplay-specific post-break hard reload to refresh the token and restore Source variant ladder (vaft) (#163)
+
 ## v61.0.0 (2026-04-21)
 
 ### Bug Fixes
