@@ -911,8 +911,8 @@ twitch-videoad.js text/javascript
             // segments that flip hasNonLiveSegment to true. Prevents a slow backup search from
             // running on poll 2+, completing tens of seconds after the break ended, and
             // overwriting cleared streamInfo state with stale backup data (PR #124 from release).
-            // Sticky CSAI escape hatch (PreferLowQualityBackup): after ~12s stuck, fall through to backup search.
-            if (PreferLowQualityBackup && streamInfo.SawCSAIFastPath && (streamInfo.ConsecutiveAllStrippedPolls || 0) >= 6) {
+            // Sticky CSAI escape hatch (PreferLowQualityBackup): after ~8s stuck, fall through to backup search.
+            if (PreferLowQualityBackup && streamInfo.SawCSAIFastPath && (streamInfo.ConsecutiveAllStrippedPolls || 0) >= 4) {
                 const stuckPolls = streamInfo.ConsecutiveAllStrippedPolls;
                 const recoveryCacheSize = streamInfo.RecoverySegments?.length || 0;
                 const earlyReloadInfo = (streamInfo.EarlyReloadCount || 0) + '/' + Math.max(1, streamInfo.PodLength || 1);
