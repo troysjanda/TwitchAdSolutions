@@ -60,6 +60,7 @@ twitch-videoad.js text/javascript
         scope.FallbackPlayerType = 'embed';
         scope.ForceAccessTokenPlayerType = 'popout';
         scope.PreferLowQualityBackup = true;// Hybrid safety net for SSAI-heavy breaks: sticky escape hatch (fires after ~8s stuck in all-stripped state) + autoplay (360p) as last-resort backup when all Source types are ad-laden. Default on; set twitchAdSolutions_preferLowQualityBackup=false to disable.
+        scope.BackupSwapFirst = false;// Skip sticky CSAI path; on ad detect, immediately swap to a backup player-type m3u8 (TTV-AB-style). Avoids MediaSource mixing from strip activity — fewer loading circles. Cost: extra fetches on every ad break. Opt-in via twitchAdSolutions_backupSwapFirst=true.
         scope.SkipPlayerReloadOnHevc = false;// If true this will skip player reload on streams which have 2k/4k quality (if you enable this and you use the 2k/4k quality setting you'll get error #4000 / #3000 / spinning wheel on chrome based browsers)
         scope.AlwaysReloadPlayerOnAd = false;// Always pause/play when entering/leaving ads
         scope.ReloadPlayerAfterAd = true;// After the ad finishes do a player reload instead of pause/play
@@ -292,6 +293,7 @@ twitch-videoad.js text/javascript
                     PinBackupPlayerType = ${PinBackupPlayerType};
                     EarlyReloadPollThreshold = ${EarlyReloadPollThreshold};
                     PreferLowQualityBackup = ${PreferLowQualityBackup};
+                    BackupSwapFirst = ${BackupSwapFirst};
                     DisableAdSpoofing = ${DisableAdSpoofing};
                     ForceAccessTokenPlayerType = '${ForceAccessTokenPlayerType}';
                     GQLDeviceID = ${GQLDeviceID ? "'" + GQLDeviceID + "'" : null};
@@ -1005,7 +1007,12 @@ twitch-videoad.js text/javascript
                     break;
                 }
             }
-            if (!hasNonLiveSegment && !streamInfo.IsUsingModifiedM3U8) {
+            // BackupSwapFirst (opt-in): skip sticky CSAI path entirely, always fall through to
+            // backup search on ad detect. Mimics TTV-AB's backup-swap-first flow — avoids
+            // MediaSource mixing from strip activity (no BLANK_MP4 injection, no recovery
+            // segment replay), which users report produces fewer loading circles. Cost: extra
+            // fetches on every ad break (token requests for each backup type tried).
+            if (!hasNonLiveSegment && !streamInfo.IsUsingModifiedM3U8 && !BackupSwapFirst) {
                 streamInfo.SawCSAIFastPath = true;
                 console.log('[AD DEBUG] CSAI fast path — all segments live, skipping backup search');
                 if (IsAdStrippingEnabled) {
@@ -2141,6 +2148,11 @@ twitch-videoad.js text/javascript
         if (lsPreferLow === 'false') {
             PreferLowQualityBackup = false;
             console.log('[AD DEBUG] PreferLowQualityBackup disabled via localStorage — sticky CSAI path only, no autoplay fallback or escape hatch');
+        }
+        const lsBackupSwapFirst = localStorage.getItem('twitchAdSolutions_backupSwapFirst');
+        if (lsBackupSwapFirst === 'true') {
+            BackupSwapFirst = true;
+            console.log('[AD DEBUG] BackupSwapFirst enabled — skipping sticky CSAI path, swapping to backup on every ad detect');
         }
         const lsHideAdOverlay = localStorage.getItem('twitchAdSolutions_hideAdOverlay');
         if (lsHideAdOverlay === 'true') {
