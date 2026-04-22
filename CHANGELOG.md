@@ -1,5 +1,11 @@
 ## Unreleased
 
+## v62.1.0 (2026-04-21)
+
+### Bug Fixes
+- **Don't fire loading-circle reload during in-flight reload** — triple-reload scenario observed on aspen: early reload 1/2 fired, then the buffer monitor detected `readyState=0` (the expected transient state during reload teardown) and fired a redundant loading-circle reload, then early reload 2/2 fired. Three hard reloads within seconds. Gate the loading-circle detector on `playerBufferState.lastReloadAt` (set by any reload path, not just loading-circle's own). Also reset `adStallStartAt` in `doTwitchPlayerTask` so stall measurements don't carry stale values across reload boundaries (vaft) (#164)
+- **Force reload after ANY committed backup (A/V desync prevention)** — field observation: audio-ahead-of-video desync compounds across escape-hatch breaks. Each escape-hatch break leaves MediaSource with mixed-source segments (backup-fetched via alternate-token access + native-fetched post-flip), causing audio/video decoder tracks to drift, which accumulates across breaks. PR #163 added the post-escape reload for the autoplay (360p) case; this extends it to any committed backup (Source-quality types included). Cost: ~1-2s black screen after every escape-hatch break (tradeoff for clean audio). Pure CSAI-only breaks with no backup commit unchanged (vaft) (#165)
+
 ## v62.0.0 (2026-04-21)
 
 ### New Features
