@@ -1,5 +1,17 @@
 ## Unreleased
 
+## v63.0.0 (2026-04-22)
+
+### New Features
+- **BackupSwapFirst default-on (architectural shift to TTV-AB-style ad-blocking)** — on ad detect, immediately swap to a backup player-type m3u8 instead of stripping native. Avoids MediaSource mixing from strip + BLANK_MP4 + recovery activity (the root cause of A/V desync and loading-circle symptoms). Field-tested across winton_ow2, warn, aspen, karq, jwantedl, hiimsky, junothemartian — fewer loading circles, faster backup commit times (415-861ms after warm cache). Preserves opt-out via `twitchAdSolutions_backupSwapFirst=false` for anyone who wants the legacy sticky CSAI strip path. Cost: extra token fetches per ad break (bandwidth tradeoff for smoother UX) (vaft) (#168)
+- **Log GraphQL errors field in access-token diagnostic** — when `streamPlaybackAccessToken` is missing from a GQL response, log the `errors` field content (truncated to 300 chars) alongside response keys. Enabled field diagnosis of the embed-specific `server error` response confirmed by #171 (vaft + video-swap-new) (#170)
+
+### Bug Fixes
+- **Broaden twitch-stitched-* DATERANGE coverage via prefix signifier** — replace exact `EXT-X-DATERANGE:CLASS="twitch-stitched-ad"` with the prefix `twitch-stitched`. Catches `-ad`, `-mid`, `-pod`, and any future `twitch-stitched-*` variant. Twitch-prefixed so no false-positive regression from PR #120's bare-`stitched` substring issue (vaft + video-swap-new) (#166)
+- **Unknown-signifier diagnostic substring-match** — the diagnostic was doing exact-string comparison against `AdSignifiers`, so it reported `twitch-stitched-ad` as "unknown" even though the `twitch-stitched` prefix covers it. Match `hasAdTags`'s substring semantics — a candidate is "known" if any AdSignifier appears within it (vaft + video-swap-new) (#167)
+- **Accept both `streamPlaybackAccessToken` GQL response shapes** — Twitch returns the token at either `response.data.streamPlaybackAccessToken` (most player types) or `response.streamPlaybackAccessToken` (observed on embed). Only the first shape was handled; embed was silently dropped as a backup option. Accept either shape via optional-chaining fallback (vaft + video-swap-new) (#169)
+- **Reorder BackupPlayerTypes (embed last) + change FallbackPlayerType** — embed's GQL access-token consistently returns `"server error"` when requested from `twitch.tv` origin (confirmed via PR #170 diagnostic). Previously embed was first-try, wasting ~200-400ms per break on the failed round-trip. Move embed to end of `BackupPlayerTypes` (site first now), change `FallbackPlayerType` from `'embed'` to `'site'`. Faster backup commit + more reliable last-resort fallback (vaft + video-swap-new) (#171)
+
 ## v62.1.0 (2026-04-21)
 
 ### Bug Fixes
