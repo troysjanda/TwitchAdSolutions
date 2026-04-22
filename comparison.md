@@ -15,11 +15,13 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 6.0
 
 | Feature | Release | Testing | TTV-AB | pixeltris |
 |---|---|---|---|---|
+| Backup-swap-first on ad detect (TTV-AB-style) | Yes (default, opt-out) | Yes (default, opt-out) | Yes (always on) | No |
 | Backup player type cycling | Yes | Yes | Yes | Yes |
 | Failed backup type tracking | Yes | Yes | Yes | No |
 | Pinned backup type | Yes (default on) | Yes (default on) | Yes (always on) | No |
 | Auto-pin source quality | Yes | Yes | No | No |
 | Segment recovery cache | Yes | Yes | Yes | No |
+| Embed player type reliability | Skipped as first-try (GQL "server error") | Skipped as first-try | Works (extension privileges) | Works |
 
 ## Ad Recovery
 
@@ -60,7 +62,7 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 6.0
 | Seek past buffer gaps | Yes | Yes | No | No |
 | Position jump drift correction | Yes | Yes | No | No |
 | Stale event filtering | No | No | Yes | No |
-| Worker crash recovery | No | No | Yes | No |
+| Worker crash recovery | Yes | Yes | Yes | No |
 
 ## Configuration
 
@@ -74,6 +76,7 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 6.0
 | DisableReloadCap | Yes | Yes | N/A | No |
 | DriftCorrectionRate | Yes | Yes | N/A | No |
 | PreferLowQualityBackup (hybrid safety net) | Yes | Yes | N/A | No |
+| BackupSwapFirst (TTV-AB-style default) | Yes (default on) | Yes (default on) | N/A (always on) | No |
 | Config logged on load | Yes | Yes | No | No |
 
 ## Debug Logging
@@ -104,6 +107,9 @@ Comparison of ryanbr/TwitchAdSolutions (release & testing) vs GosuDRM/TTV-AB 6.0
 | Optional chaining | Yes | Yes | Yes | No |
 | GQL response validation | Yes | Yes | Yes | No |
 | parseAttributes tag prefix strip | Yes | Yes | No | No |
+| GQL response shape fallback (data wrap + flat) | Yes | Yes | Yes | No |
+| GQL error field in diagnostic log | Yes | Yes | No | No |
+| Worker-bridge Response full shape (url/ok/redirected/type) | Yes | Yes | N/A | No |
 
 ## Compatibility
 

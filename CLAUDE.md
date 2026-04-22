@@ -46,6 +46,7 @@ All read at init, injected into worker blob:
 - `twitchAdSolutions_driftCorrectionRate` — number, default `1.1` (0 to disable)
 - `twitchAdSolutions_earlyReloadPollThreshold` — number, default `5` (0 to disable; thin cache overrides to 1)
 - `twitchAdSolutions_preferLowQualityBackup` — hybrid mode (sticky escape hatch + autoplay last-resort backup), default `true`; set to `false` to disable (vaft only)
+- `twitchAdSolutions_backupSwapFirst` — on ad detect, immediately swap to backup player-type m3u8 (TTV-AB-style) instead of sticky CSAI strip. Default `true` as of v63.0.0; set to `false` for legacy strip-first path (vaft only)
 
 ## CSAI vs SSAI
 

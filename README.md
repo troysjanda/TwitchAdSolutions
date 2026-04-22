@@ -99,9 +99,14 @@ The scripts support runtime configuration via `localStorage`. Set values in the 
 - Only enable if you're seeing genuinely stuck playback that a single reload doesn't fix
 
 **`twitchAdSolutions_preferLowQualityBackup`** (default: `true`, vaft only)
-- Hybrid safety net for SSAI-heavy ad breaks. Keeps the sticky CSAI fast path (no regression on clean breaks) and adds: (1) sticky escape hatch — after ~8s stuck with the early-reload budget exhausted, fall through to backup search instead of freezing; (2) `autoplay` (360p) appended as a last-resort backup when all Source types (embed/site/popout/mobile_web) are ad-laden
-- Set to `false` to disable — sticky CSAI path only, no escape hatch or autoplay fallback
+- Hybrid safety net for SSAI-heavy ad breaks. Adds `autoplay` (360p) as a last-resort backup when all Source types (site/popout/mobile_web/embed) are ad-laden. Also enables the sticky escape hatch (~8s stuck → fall through to backup search) when `twitchAdSolutions_backupSwapFirst=false`.
+- Set to `false` to disable the autoplay fallback and escape hatch
 - ⚠ **Quality caveat**: autoplay only commits when every Source backup is also ad-laden — rare, but the 360p hit is the tradeoff for avoiding long freezes on SSAI-heavy channels
+
+**`twitchAdSolutions_backupSwapFirst`** (default: `true`, vaft only)
+- **Default ad-blocking path** (as of v63.0.0). On ad detect, immediately swap to a backup player-type m3u8 (site → popout → mobile_web → embed, first clean wins). Avoids the MediaSource mixing that the legacy strip+BLANK_MP4+recovery path produces — fewer loading circles and no A/V desync accumulation.
+- Set to `false` to revert to the legacy sticky CSAI strip-first path. Use this if you're on a channel/network where backup fetches are unreliable and stripping native is preferable.
+- ⚠ **Bandwidth tradeoff**: extra token fetch on every ad break (~400ms first time per session, much less after `BackupEncodingsM3U8Cache` warms up).
 
 ```js
 // Faster post-ad transition
@@ -121,6 +126,7 @@ localStorage.removeItem('twitchAdSolutions_pinBackupPlayerType');
 localStorage.removeItem('twitchAdSolutions_reloadCooldownSeconds');
 localStorage.removeItem('twitchAdSolutions_disableReloadCap');
 localStorage.removeItem('twitchAdSolutions_preferLowQualityBackup');
+localStorage.removeItem('twitchAdSolutions_backupSwapFirst');
 ```
 
 ## Known Extension Conflicts
