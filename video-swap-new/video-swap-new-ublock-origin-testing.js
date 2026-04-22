@@ -10,7 +10,9 @@ twitch-videoad.js text/javascript
     window.twitchAdSolutionsVersion = ourTwitchAdSolutionsVersion;
     function declareOptions(scope) {
         // Options / globals
-        scope.OPT_BACKUP_PLAYER_TYPES = [ 'embed', 'popout', 'mobile_web' ];
+        // 'embed' moved to end — field-observed Twitch returns GQL 'server error' for
+        // streamPlaybackAccessToken on embed when requested from twitch.tv origin.
+        scope.OPT_BACKUP_PLAYER_TYPES = [ 'popout', 'mobile_web', 'embed' ];
         scope.OPT_FORCE_ACCESS_TOKEN_PLAYER_TYPE = 'popout';
         // 'twitch-stitched' catches the twitch-stitched-* DATERANGE class family
         // (-ad, -mid, -pod, etc.) without requiring an exact -ad suffix. Twitch-
