@@ -1266,10 +1266,12 @@
                     console.log('[AD DEBUG] Ad break stats: ' + streamInfo.TotalAllStrippedPolls + ' all-stripped polls, freeze duration: ' + wallClockFreeze + reloadInfo);
                 }
                 const hadStrippedSegments = streamInfo.NumStrippedAdSegments > 0;
-                // Only count toward false-positive guard if it was NOT a CSAI-only break.
-                // CSAI breaks are real ads delivered outside the m3u8 — they legitimately
-                // produce 0 stripped segments and should not be flagged as false positives.
-                if (!hadStrippedSegments && !streamInfo.SawCSAIFastPath) {
+                // Only count toward false-positive guard if it was NOT a CSAI-only break
+                // and not a backup-swap-first break. CSAI breaks are real ads delivered
+                // outside the m3u8 — they legitimately produce 0 stripped segments.
+                // BackupSwapFirst swaps to backup on every ad detect, so 0 stripped is
+                // expected by design (we never strip native; we just serve backup).
+                if (!hadStrippedSegments && !streamInfo.SawCSAIFastPath && !BackupSwapFirst) {
                     if (!streamInfo.ConsecutiveZeroStripBreaks) streamInfo.ConsecutiveZeroStripBreaks = 0;
                     streamInfo.ConsecutiveZeroStripBreaks++;
                     if (streamInfo.ConsecutiveZeroStripBreaks >= 3) {
