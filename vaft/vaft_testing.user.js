@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      614.0.0
+// @version      615.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -36,7 +36,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 614;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 615;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -1325,6 +1325,14 @@
                 streamInfo.ActiveBackupPlayerType = null;
                 streamInfo.RequestedAds.clear();
                 streamInfo.FailedBackupPlayerTypes.clear();
+                // Clear pin if the pinned type was contaminated this break — avoids wasted
+                // first-try fetch on next break. Field-observed on pge4: PinnedBackupPlayerType
+                // gets set to the last-committed type via PinBackupPlayerType=true, but when
+                // that type went contaminated mid-break we'd still try it first next break.
+                if (streamInfo.PinnedBackupPlayerType && streamInfo.LoggedBackupAdsByType && streamInfo.LoggedBackupAdsByType.has(streamInfo.PinnedBackupPlayerType)) {
+                    console.log('[AD DEBUG] Clearing pinned backup type ' + streamInfo.PinnedBackupPlayerType + ' — contaminated this break, would waste first-try next break');
+                    streamInfo.PinnedBackupPlayerType = null;
+                }
                 if (streamInfo.LoggedBackupAdsByType) streamInfo.LoggedBackupAdsByType.clear();
                 streamInfo.LoggedContamReorderThisBreak = false;
                 streamInfo.CleanPlaylistCount = 0;
