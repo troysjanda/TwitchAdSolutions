@@ -1316,7 +1316,10 @@
                     if (streamInfo.ConsecutiveZeroStripBreaks >= 3) {
                         console.log('[AD DEBUG] Warning: ' + streamInfo.ConsecutiveZeroStripBreaks + ' consecutive non-CSAI ad breaks with 0 segments stripped — possible false positive from ad signifiers');
                     }
-                } else if (hadStrippedSegments) {
+                } else if (hadStrippedSegments || streamInfo.SawCSAIFastPath || BackupSwapFirst) {
+                    // Reset is symmetric with the increment guard above — any positive "break
+                    // was handled cleanly" signal resets the false-positive history. Prevents
+                    // stale suspicious history from bleeding across legitimately-handled breaks.
                     streamInfo.ConsecutiveZeroStripBreaks = 0;
                 }
                 streamInfo.IsShowingAd = false;
