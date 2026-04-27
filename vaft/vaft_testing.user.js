@@ -35,6 +35,18 @@
             return;
         }
     }
+    // Skip injection on the Twitch clip editor — clips.twitch.tv host or /<channel>/clip/<slug> path.
+    // Our fetch/Worker hooks and buffer monitor are aimed at the live channel player; on the
+    // clip editor's seekable preview they have no ads to act on and have caused the preview
+    // to freeze when the user drags the trim range. (Sync'd with TTV-AB v6.4.9.)
+    {
+        const _clipHost = document.location.hostname;
+        const _clipPath = document.location.pathname || '';
+        if (_clipHost === 'clips.twitch.tv' || /^\/[^/]+\/clip\/[^/]+/.test(_clipPath)) {
+            console.log('[AD DEBUG] vaft-testing skipped — clip editor page (' + _clipHost + _clipPath + ').');
+            return;
+        }
+    }
     'use strict';
     const ourTwitchAdSolutionsVersion = 615;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
