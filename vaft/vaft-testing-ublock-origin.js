@@ -2113,48 +2113,28 @@ twitch-videoad.js text/javascript
         if (document.getElementById('seventv-extension')) {
             console.log('[AD DEBUG] Warning: 7TV extension detected — may cause black screen or buffering issues. If you experience problems, try disabling 7TV.');
         }
-        // This stops Twitch from pausing the player when in another tab and an ad shows.
-        // Taken from https://github.com/saucettv/VideoAdBlockForTwitch/blob/cefce9d2b565769c77e3666ac8234c3acfe20d83/chrome/content.js#L30
-        try {
-            Object.defineProperty(document, 'visibilityState', {
-                get() {
-                    return 'visible';
-                }
-            });
-        }catch{}
-        let hidden = document.__lookupGetter__('hidden');
-        try {
-            Object.defineProperty(document, 'hidden', {
-                get() {
-                    return false;
-                }
-            });
-        }catch{}
-        const block = e => {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-        };
+        // Resume the player on tab focus if Twitch paused it during an ad on a hidden tab.
+        // Previously also spoofed document.hidden / visibilityState / hasFocus and swallowed
+        // the events on the capture phase. That broke other extensions that key off real
+        // visibility (e.g. BetterTTV "Mute Invisible Player"). Resume-on-focus alone is
+        // enough to keep playback alive across hidden→visible transitions during ads.
+        // Sync'd with TTV-AB v6.5.0.
         let wasVideoPlaying = true;
-        const visibilityChange = e => {
+        const visibilityChange = () => {
             const videos = document.getElementsByTagName('video');
-            if (videos.length > 0) {
-                if (hidden && hidden.apply(document) === true) {
-                    wasVideoPlaying = !videos[0].paused && !videos[0].ended;
-                } else {
-                    if (!playerBufferState.hasStreamStarted) {
-                        //console.log('Tab focused. Stream should be active');
-                        playerBufferState.hasStreamStarted = true;
-                    }
-                    if (wasVideoPlaying && !videos[0].ended && videos[0].paused) {
-                        videos[0].play()?.catch?.(() => {});
-                    }
-                }
+            if (videos.length === 0) return;
+            if (document.hidden) {
+                wasVideoPlaying = !videos[0].paused && !videos[0].ended;
+                return;
             }
-            block(e);
+            if (!playerBufferState.hasStreamStarted) {
+                playerBufferState.hasStreamStarted = true;
+            }
+            if (wasVideoPlaying && !videos[0].ended && videos[0].paused) {
+                videos[0].play()?.catch?.(() => {});
+            }
         };
-        document.addEventListener('visibilitychange', visibilityChange, true);
-        try { document.hasFocus = () => true; } catch{}
+        document.addEventListener('visibilitychange', visibilityChange);
         // Hooks for preserving volume / resolution
         try {
             const keysToCache = [
