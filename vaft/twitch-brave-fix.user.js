@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (twitch-brave-fix)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      1.3.0
+// @version      1.3.1
 // @description  Bypass Brave fingerprint detection on Twitch GQL/integrity requests by retrying via GM_xmlHttpRequest with header spoofs (Sec-Ch-Ua brand rewrite from Brave to Google Chrome with synthetic fallback when userAgentData hidden, Sec-Ch-Ua-Platform, Sec-Ch-Ua-Mobile, Firefox User-Agent, explicit Origin/Referer/Host, Accept-Language). Also hides navigator.brave and rebrands navigator.userAgentData.brands / getHighEntropyValues from "Brave" to "Google Chrome" so Twitch JS can't preemptively flag the session. Per-request retry: each interceptable request goes native first, sniffs for `errors` in the response body, and retries that specific request via GM xhr if needed — fixes occasional fingerprint-driven failures (e.g. Brave login on www.twitch.tv) without paying the GM xhr tax on every successful request. Companion to vaft / video-swap-new. Userscript-only (Tampermonkey / Violentmonkey / Greasemonkey 4+); not available as a uBlock Origin scriptlet because GM.xmlHttpRequest is a userscript-manager API.
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/twitch-brave-fix.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/twitch-brave-fix.user.js
@@ -27,8 +27,8 @@
         if (_clipHost === 'clips.twitch.tv' || /^\/[^/]+\/clip\/[^/]+/.test(_clipPath)) return;
     }
     'use strict';
-    const ourVersion = 4;
-    console.log('[TwitchBraveFix] v1.3.0 loading');
+    const ourVersion = 5;
+    console.log('[TwitchBraveFix] v1.3.1 loading');
     if (typeof window.twitchBraveFixVersion !== 'undefined' && window.twitchBraveFixVersion >= ourVersion) {
         console.log('[TwitchBraveFix] CONFLICT: skipped — another instance already active (v' + window.twitchBraveFixVersion + ')');
         return;
@@ -257,19 +257,32 @@
         }
     }
 
-    window.fetch = async function _braveFixFetch(input, init) {
+    // Sync outer wrapper so the ~99% non-interceptable hot path skips async-function promise
+    // wrapping and inliner-hostile `arguments` access. The try/catch preserves the
+    // "fetch never throws synchronously, always returns a Promise" contract for any caller
+    // using `.catch()` without a preceding `.then()`.
+    async function _interceptedFetch(input, init) {
         const url = typeof input === 'string' ? input : (input && input.url) || '';
-        if (!isInterceptable(url)) {
-            return realFetch.apply(this, arguments);
-        }
         const method = (init && init.method) || (input && input.method) || 'GET';
         const headers = collectHeaders(input, init);
         // Capture the body lazily — for Request inputs we hold a pre-fetch clone since the
         // original gets consumed by realFetch, but we only decode it if retry actually fires.
         const bodyClone = (input instanceof Request) ? input.clone() : null;
         const readBody = () => readBodyAsText(bodyClone || input, init);
-        const response = await realFetch.apply(this, arguments);
+        const response = await realFetch.call(this, input, init);
         return maybeRetryOnErrors(url, method, headers, response, readBody);
+    }
+
+    window.fetch = function _braveFixFetch(input, init) {
+        try {
+            const url = typeof input === 'string' ? input : (input && input.url) || '';
+            if (!isInterceptable(url)) {
+                return realFetch.call(this, input, init);
+            }
+            return _interceptedFetch.call(this, input, init);
+        } catch (e) {
+            return Promise.reject(e);
+        }
     };
 
     console.log('[TwitchBraveFix] window.fetch hook installed + navigator.brave hidden + userAgentData rebranded — per-request retry: native fetch first, retry via GM_xmlHttpRequest only when response carries `errors`');
