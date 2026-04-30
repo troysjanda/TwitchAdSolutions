@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (twitch-brave-fix)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      1.2.1
-// @description  Bypass Brave fingerprint detection on Twitch GQL/integrity requests by retrying via GM_xmlHttpRequest with header spoofs (Sec-Ch-Ua brand rewrite from Brave to Google Chrome with synthetic fallback when userAgentData hidden, Sec-Ch-Ua-Platform, Sec-Ch-Ua-Mobile, Firefox User-Agent, explicit Origin/Referer/Host, Accept-Language). Also hides navigator.brave so Twitch JS can't preemptively flag the session. Per-request retry: each interceptable request goes native first, sniffs for `errors` in the response body, and retries that specific request via GM xhr if needed — fixes occasional fingerprint-driven failures (e.g. Brave login on www.twitch.tv) without paying the GM xhr tax on every successful request. Companion to vaft / video-swap-new. Userscript-only (Tampermonkey / Violentmonkey / Greasemonkey 4+); not available as a uBlock Origin scriptlet because GM.xmlHttpRequest is a userscript-manager API.
+// @version      1.3.0
+// @description  Bypass Brave fingerprint detection on Twitch GQL/integrity requests by retrying via GM_xmlHttpRequest with header spoofs (Sec-Ch-Ua brand rewrite from Brave to Google Chrome with synthetic fallback when userAgentData hidden, Sec-Ch-Ua-Platform, Sec-Ch-Ua-Mobile, Firefox User-Agent, explicit Origin/Referer/Host, Accept-Language). Also hides navigator.brave and rebrands navigator.userAgentData.brands / getHighEntropyValues from "Brave" to "Google Chrome" so Twitch JS can't preemptively flag the session. Per-request retry: each interceptable request goes native first, sniffs for `errors` in the response body, and retries that specific request via GM xhr if needed — fixes occasional fingerprint-driven failures (e.g. Brave login on www.twitch.tv) without paying the GM xhr tax on every successful request. Companion to vaft / video-swap-new. Userscript-only (Tampermonkey / Violentmonkey / Greasemonkey 4+); not available as a uBlock Origin scriptlet because GM.xmlHttpRequest is a userscript-manager API.
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/twitch-brave-fix.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/twitch-brave-fix.user.js
 // @author       https://github.com/ryanbr/TwitchAdSolutions
@@ -27,8 +27,8 @@
         if (_clipHost === 'clips.twitch.tv' || /^\/[^/]+\/clip\/[^/]+/.test(_clipPath)) return;
     }
     'use strict';
-    const ourVersion = 3;
-    console.log('[TwitchBraveFix] v1.2.1 loading');
+    const ourVersion = 4;
+    console.log('[TwitchBraveFix] v1.3.0 loading');
     if (typeof window.twitchBraveFixVersion !== 'undefined' && window.twitchBraveFixVersion >= ourVersion) {
         console.log('[TwitchBraveFix] CONFLICT: skipped — another instance already active (v' + window.twitchBraveFixVersion + ')');
         return;
@@ -46,6 +46,38 @@
             });
         }
     } catch (_e) { /* non-configurable on some Brave builds; accept the risk and rely on header spoofs */ }
+
+    // Rebrand navigator.userAgentData so in-page JS checking the brands array sees "Google Chrome"
+    // instead of "Brave". Twitch can call getHighEntropyValues(['brands']) directly to fingerprint
+    // the session — the Sec-Ch-Ua header spoof on outgoing requests doesn't cover that JS surface.
+    // Runs synchronously at document-start before Twitch's bundle loads.
+    try {
+        const uaData = navigator.userAgentData;
+        if (uaData) {
+            const rebrand = (arr) => Array.isArray(arr)
+                ? arr.map(b => b.brand === 'Brave'
+                    ? { brand: 'Google Chrome', version: b.version }
+                    : b)
+                : arr;
+            const spoofedBrands = Object.freeze(rebrand(uaData.brands));
+            Object.defineProperty(uaData, 'brands', {
+                get: () => spoofedBrands,
+                configurable: true,
+            });
+            const origGHEV = uaData.getHighEntropyValues;
+            if (typeof origGHEV === 'function') {
+                uaData.getHighEntropyValues = function(hints) {
+                    return origGHEV.call(this, hints).then(result => {
+                        if (result && Array.isArray(result.brands))
+                            result.brands = rebrand(result.brands);
+                        if (result && Array.isArray(result.fullVersionList))
+                            result.fullVersionList = rebrand(result.fullVersionList);
+                        return result;
+                    });
+                };
+            }
+        }
+    } catch (_e) { /* read-only on some builds — fall through to header-only spoof */ }
 
     const gmXhr = (typeof GM !== 'undefined' && typeof GM.xmlHttpRequest === 'function') ? GM.xmlHttpRequest
                 : (typeof GM_xmlHttpRequest === 'function') ? GM_xmlHttpRequest
@@ -240,5 +272,5 @@
         return maybeRetryOnErrors(url, method, headers, response, readBody);
     };
 
-    console.log('[TwitchBraveFix] window.fetch hook installed + navigator.brave hidden — per-request retry: native fetch first, retry via GM_xmlHttpRequest only when response carries `errors`');
+    console.log('[TwitchBraveFix] window.fetch hook installed + navigator.brave hidden + userAgentData rebranded — per-request retry: native fetch first, retry via GM_xmlHttpRequest only when response carries `errors`');
 })();
