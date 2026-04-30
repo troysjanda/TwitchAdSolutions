@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (twitch-brave-fix)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      1.2.0
+// @version      1.2.1
 // @description  Bypass Brave fingerprint detection on Twitch GQL/integrity requests by retrying via GM_xmlHttpRequest with header spoofs (Sec-Ch-Ua brand rewrite from Brave to Google Chrome with synthetic fallback when userAgentData hidden, Sec-Ch-Ua-Platform, Sec-Ch-Ua-Mobile, Firefox User-Agent, explicit Origin/Referer/Host, Accept-Language). Also hides navigator.brave so Twitch JS can't preemptively flag the session. Per-request retry: each interceptable request goes native first, sniffs for `errors` in the response body, and retries that specific request via GM xhr if needed — fixes occasional fingerprint-driven failures (e.g. Brave login on www.twitch.tv) without paying the GM xhr tax on every successful request. Companion to vaft / video-swap-new. Userscript-only (Tampermonkey / Violentmonkey / Greasemonkey 4+); not available as a uBlock Origin scriptlet because GM.xmlHttpRequest is a userscript-manager API.
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/twitch-brave-fix.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/twitch-brave-fix.user.js
@@ -28,7 +28,7 @@
     }
     'use strict';
     const ourVersion = 3;
-    console.log('[TwitchBraveFix] v1.2.0 loading');
+    console.log('[TwitchBraveFix] v1.2.1 loading');
     if (typeof window.twitchBraveFixVersion !== 'undefined' && window.twitchBraveFixVersion >= ourVersion) {
         console.log('[TwitchBraveFix] CONFLICT: skipped — another instance already active (v' + window.twitchBraveFixVersion + ')');
         return;
@@ -64,54 +64,59 @@
             || url.indexOf('passport.twitch.tv/integrity') !== -1;
     }
 
-    function getChromeMajor() {
-        const m = navigator.userAgent.match(/Chrome\/(\d+)/);
-        return m && m[1] ? parseInt(m[1], 10) : 138;
-    }
-
-    // Synthetic Chrome-N Sec-Ch-Ua used when navigator.userAgentData is hidden (Brave Strict mode)
-    // or unavailable. Format matches what real Chromium ships, so the absence of "Brave" looks natural.
-    function getSyntheticSecChUa() {
-        const v = getChromeMajor();
-        return '"Not_A Brand";v="99", "Google Chrome";v="' + v + '", "Chromium";v="' + v + '"';
-    }
-
-    async function getSpoofedSecChUa() {
-        const uaData = navigator.userAgentData;
-        if (uaData && typeof uaData.getHighEntropyValues === 'function') {
-            try {
-                const { brands } = await uaData.getHighEntropyValues(['brands']);
-                if (brands && brands.length) {
-                    return brands.map(b => {
-                        const brand = b.brand === 'Brave' ? 'Google Chrome' : b.brand;
-                        return '"' + brand + '";v="' + b.version + '"';
-                    }).join(', ');
-                }
-            } catch (_e) { /* fall through to synthetic */ }
-        }
-        return getSyntheticSecChUa();
-    }
-
-    function getSpoofedPlatform() {
+    // Spoof values are derived from navigator.userAgent / navigator.userAgentData, which don't
+    // change mid-session. Compute once at init so per-retry header assembly is just object copies.
+    const SPOOF = (() => {
         const ua = navigator.userAgent;
-        if (/Android/i.test(ua)) return '"Android"';
-        if (/iPhone|iPad|iPod/i.test(ua)) return '"iOS"';
-        if (/Windows/i.test(ua)) return '"Windows"';
-        if (/Mac OS X|Macintosh/i.test(ua)) return '"macOS"';
-        if (/Linux/i.test(ua)) return '"Linux"';
-        return '"Windows"';
-    }
+        const chromeMatch = ua.match(/Chrome\/(\d+)/);
+        const chromeMajor = chromeMatch && chromeMatch[1] ? parseInt(chromeMatch[1], 10) : 138;
 
-    function getSpoofedMobile() {
-        return /Mobile/.test(navigator.userAgent) ? '?1' : '?0';
-    }
+        let platform;
+        if (/Android/i.test(ua)) platform = '"Android"';
+        else if (/iPhone|iPad|iPod/i.test(ua)) platform = '"iOS"';
+        else if (/Windows/i.test(ua)) platform = '"Windows"';
+        else if (/Mac OS X|Macintosh/i.test(ua)) platform = '"macOS"';
+        else if (/Linux/i.test(ua)) platform = '"Linux"';
+        else platform = '"Windows"';
 
-    function getSpoofedFirefoxUA() {
-        const ua = navigator.userAgent;
+        const mobile = /Mobile/.test(ua) ? '?1' : '?0';
+
         const platformMatch = ua.match(/\(([^)]+)\)/);
-        const platform = platformMatch ? platformMatch[1] : 'Windows NT 10.0; Win64; x64';
-        const firefoxVersion = getChromeMajor() + 2;
-        return 'Mozilla/5.0 (' + platform + '; rv:' + firefoxVersion + '.0) Gecko/20100101 Firefox/' + firefoxVersion + '.0';
+        const platformInner = platformMatch ? platformMatch[1] : 'Windows NT 10.0; Win64; x64';
+        const firefoxVersion = chromeMajor + 2;
+        const firefoxUA = 'Mozilla/5.0 (' + platformInner + '; rv:' + firefoxVersion
+                        + '.0) Gecko/20100101 Firefox/' + firefoxVersion + '.0';
+
+        // Synthetic Chrome-N Sec-Ch-Ua used when navigator.userAgentData is hidden (Brave Strict
+        // mode) or unavailable. Format matches what real Chromium ships, so the absence of "Brave"
+        // looks natural.
+        const syntheticSecChUa = '"Not_A Brand";v="99", "Google Chrome";v="' + chromeMajor
+                               + '", "Chromium";v="' + chromeMajor + '"';
+
+        return { chromeMajor, platform, mobile, firefoxUA, syntheticSecChUa };
+    })();
+
+    // Cached promise — getHighEntropyValues() is async but the result is stable, so we resolve
+    // it once on first need and reuse the same promise for every subsequent retry.
+    let _secChUaPromise = null;
+    function getSpoofedSecChUa() {
+        if (_secChUaPromise) return _secChUaPromise;
+        _secChUaPromise = (async () => {
+            const uaData = navigator.userAgentData;
+            if (uaData && typeof uaData.getHighEntropyValues === 'function') {
+                try {
+                    const { brands } = await uaData.getHighEntropyValues(['brands']);
+                    if (brands && brands.length) {
+                        return brands.map(b => {
+                            const brand = b.brand === 'Brave' ? 'Google Chrome' : b.brand;
+                            return '"' + brand + '";v="' + b.version + '"';
+                        }).join(', ');
+                    }
+                } catch (_e) { /* fall through to synthetic */ }
+            }
+            return SPOOF.syntheticSecChUa;
+        })();
+        return _secChUaPromise;
     }
 
     function parseRawHeaders(headersStr) {
@@ -168,12 +173,11 @@
 
     async function gmRetry(url, method, bodyText, baseHeaders) {
         const spoofedSecChUa = await getSpoofedSecChUa();
-        const spoofedUA = getSpoofedFirefoxUA();
         const headers = Object.assign({}, baseHeaders || {});
         if (spoofedSecChUa) headers['Sec-Ch-Ua'] = spoofedSecChUa;
-        headers['Sec-Ch-Ua-Mobile'] = getSpoofedMobile();
-        headers['Sec-Ch-Ua-Platform'] = getSpoofedPlatform();
-        headers['User-Agent'] = spoofedUA;
+        headers['Sec-Ch-Ua-Mobile'] = SPOOF.mobile;
+        headers['Sec-Ch-Ua-Platform'] = SPOOF.platform;
+        headers['User-Agent'] = SPOOF.firefoxUA;
         headers['Accept-Language'] = 'en-US,en;q=0.9';
         headers['Referer'] = 'https://www.twitch.tv/';
         headers['Origin'] = 'https://www.twitch.tv/';
@@ -191,7 +195,7 @@
         });
     }
 
-    async function maybeRetryOnErrors(url, method, bodyText, headers, response) {
+    async function maybeRetryOnErrors(url, method, headers, response, readBody) {
         if (response.status !== 200) return response;
         const cloned = response.clone();
         let bodyTextResp;
@@ -205,6 +209,9 @@
             return response;
         }
         console.log('[TwitchBraveFix] GQL errors detected on ' + url.replace(/\?.*$/, '') + ' — retrying via GM_xmlHttpRequest with header spoofs');
+        // Body is only needed on the retry path — defer the clone-and-decode until now so the
+        // happy path doesn't pay for it on every interceptable request.
+        const bodyText = await readBody();
         try {
             const gmResp = await gmRetry(url, method, bodyText, headers);
             return gmRespToFetchResp(gmResp);
@@ -225,9 +232,12 @@
         }
         const method = (init && init.method) || (input && input.method) || 'GET';
         const headers = collectHeaders(input, init);
-        const bodyText = await readBodyAsText(input, init);
+        // Capture the body lazily — for Request inputs we hold a pre-fetch clone since the
+        // original gets consumed by realFetch, but we only decode it if retry actually fires.
+        const bodyClone = (input instanceof Request) ? input.clone() : null;
+        const readBody = () => readBodyAsText(bodyClone || input, init);
         const response = await realFetch.apply(this, arguments);
-        return maybeRetryOnErrors(url, method, bodyText, headers, response);
+        return maybeRetryOnErrors(url, method, headers, response, readBody);
     };
 
     console.log('[TwitchBraveFix] window.fetch hook installed + navigator.brave hidden — per-request retry: native fetch first, retry via GM_xmlHttpRequest only when response carries `errors`');
