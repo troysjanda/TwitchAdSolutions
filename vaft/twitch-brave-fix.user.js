@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (twitch-brave-fix)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      1.1.0
-// @description  Bypass Brave fingerprint detection on Twitch GQL/integrity requests by retrying via GM_xmlHttpRequest with header spoofs (Sec-Ch-Ua brand rewrite from Brave to Google Chrome with synthetic fallback when userAgentData hidden, Sec-Ch-Ua-Platform, Sec-Ch-Ua-Mobile, Firefox User-Agent, explicit Origin/Referer/Host, Accept-Language). Also hides navigator.brave so Twitch JS can't preemptively flag the session. Companion to vaft / video-swap-new — fixes Brave login and integrity-check failures that block subsequent ad-blocking GQL calls. Userscript-only (Tampermonkey / Violentmonkey / Greasemonkey 4+); not available as a uBlock Origin scriptlet because GM.xmlHttpRequest is a userscript-manager API.
+// @version      1.2.0
+// @description  Bypass Brave fingerprint detection on Twitch GQL/integrity requests by retrying via GM_xmlHttpRequest with header spoofs (Sec-Ch-Ua brand rewrite from Brave to Google Chrome with synthetic fallback when userAgentData hidden, Sec-Ch-Ua-Platform, Sec-Ch-Ua-Mobile, Firefox User-Agent, explicit Origin/Referer/Host, Accept-Language). Also hides navigator.brave so Twitch JS can't preemptively flag the session. Per-request retry: each interceptable request goes native first, sniffs for `errors` in the response body, and retries that specific request via GM xhr if needed — fixes occasional fingerprint-driven failures (e.g. Brave login on www.twitch.tv) without paying the GM xhr tax on every successful request. Companion to vaft / video-swap-new. Userscript-only (Tampermonkey / Violentmonkey / Greasemonkey 4+); not available as a uBlock Origin scriptlet because GM.xmlHttpRequest is a userscript-manager API.
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/twitch-brave-fix.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/twitch-brave-fix.user.js
 // @author       https://github.com/ryanbr/TwitchAdSolutions
@@ -27,8 +27,8 @@
         if (_clipHost === 'clips.twitch.tv' || /^\/[^/]+\/clip\/[^/]+/.test(_clipPath)) return;
     }
     'use strict';
-    const ourVersion = 2;
-    console.log('[TwitchBraveFix] v1.1.0 loading');
+    const ourVersion = 3;
+    console.log('[TwitchBraveFix] v1.2.0 loading');
     if (typeof window.twitchBraveFixVersion !== 'undefined' && window.twitchBraveFixVersion >= ourVersion) {
         console.log('[TwitchBraveFix] CONFLICT: skipped — another instance already active (v' + window.twitchBraveFixVersion + ')');
         return;
@@ -55,7 +55,6 @@
         return;
     }
 
-    let isProblematicBrowser = false;
     const realFetch = window.fetch;
 
     function isInterceptable(url) {
@@ -205,8 +204,7 @@
         if (typeof parsed?.errors === 'undefined' && !(Array.isArray(parsed) && parsed.some(p => typeof p?.errors !== 'undefined'))) {
             return response;
         }
-        console.log('[TwitchBraveFix] GQL errors detected — switching to GM_xmlHttpRequest path with header spoofs');
-        isProblematicBrowser = true;
+        console.log('[TwitchBraveFix] GQL errors detected on ' + url.replace(/\?.*$/, '') + ' — retrying via GM_xmlHttpRequest with header spoofs');
         try {
             const gmResp = await gmRetry(url, method, bodyText, headers);
             return gmRespToFetchResp(gmResp);
@@ -228,18 +226,9 @@
         const method = (init && init.method) || (input && input.method) || 'GET';
         const headers = collectHeaders(input, init);
         const bodyText = await readBodyAsText(input, init);
-        if (isProblematicBrowser) {
-            try {
-                const gmResp = await gmRetry(url, method, bodyText, headers);
-                return gmRespToFetchResp(gmResp);
-            } catch (e) {
-                console.log('[TwitchBraveFix] GM_xmlHttpRequest path failed; falling back to native fetch:', (e && e.message) || e);
-                return realFetch.apply(this, arguments);
-            }
-        }
         const response = await realFetch.apply(this, arguments);
         return maybeRetryOnErrors(url, method, bodyText, headers, response);
     };
 
-    console.log('[TwitchBraveFix] window.fetch hook installed + navigator.brave hidden — will sniff first GQL response for errors and retry via GM_xmlHttpRequest if present');
+    console.log('[TwitchBraveFix] window.fetch hook installed + navigator.brave hidden — per-request retry: native fetch first, retry via GM_xmlHttpRequest only when response carries `errors`');
 })();
