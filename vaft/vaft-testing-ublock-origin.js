@@ -1992,49 +1992,20 @@ twitch-videoad.js text/javascript
             // Soft reload for 'post-ad' (smooth transition, no black screen teardown).
             const hardReload = reloadKind === 'early';
             console.log('Reloading Twitch player' + (hardReload ? ' (hard)' : ' (soft)'));
-            let preReloadMuted = null;
-            let preReloadVolume = null;
+            // Pre-mute through hard reload to hide MSE-teardown click; restored on canplay.
             if (hardReload) {
                 try {
-                    const videos = document.getElementsByTagName('video');
-                    if (videos.length > 0) {
-                        preReloadMuted = videos[0].muted;
-                        preReloadVolume = videos[0].volume;
-                        if (!preReloadMuted) {
-                            videos[0].muted = true;
-                        }
+                    const v = document.querySelector('video');
+                    if (v && !v.muted) {
+                        v.muted = true;
+                        const restore = () => { try { document.querySelector('video').muted = false; } catch {} };
+                        v.addEventListener('canplay', restore, { once: true });
+                        setTimeout(restore, 1500);
                     }
                 } catch {}
             }
             playerState.setSrc({ isNewMediaPlayerInstance: hardReload, refreshAccessToken: hardReload });
             postTwitchWorkerMessage('TriggeredPlayerReload');
-            if (hardReload && preReloadMuted === false) {
-                let pollElapsed = 0;
-                const pollIntervalMs = 100;
-                const pollMaxMs = 1500;
-                const pollUnmute = () => {
-                    try {
-                        const videos = document.getElementsByTagName('video');
-                        if (videos.length > 0 && (videos[0].currentTime > 0 || videos[0].readyState >= 2)) {
-                            videos[0].muted = false;
-                            if (typeof preReloadVolume === 'number' && preReloadVolume > 0) {
-                                videos[0].volume = preReloadVolume;
-                            }
-                            return;
-                        }
-                    } catch {}
-                    pollElapsed += pollIntervalMs;
-                    if (pollElapsed < pollMaxMs) {
-                        setTimeout(pollUnmute, pollIntervalMs);
-                    } else {
-                        try {
-                            const videos = document.getElementsByTagName('video');
-                            if (videos.length > 0) videos[0].muted = false;
-                        } catch {}
-                    }
-                };
-                setTimeout(pollUnmute, pollIntervalMs);
-            }
             // Resume playback with retry — only if user hadn't manually paused
             if (!wasPaused) {
                 player.play()?.catch?.(() => {});
