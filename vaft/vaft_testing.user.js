@@ -1310,7 +1310,7 @@
             streamInfo.CleanPlaylistCount++;
             // Check if the current playlist has live segments — if not, backup stream is dead
             const hasLiveSegments = textStr.includes(',live');
-            if (streamInfo.CleanPlaylistCount >= 2 || !hasLiveSegments) {
+            if (streamInfo.CleanPlaylistCount >= 3 || !hasLiveSegments) {
                 if (!hasLiveSegments) {
                     console.log('[AD DEBUG] Backup stream has no live segments — forcing immediate reload');
                 }
