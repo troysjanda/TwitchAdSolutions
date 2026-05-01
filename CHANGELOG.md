@@ -1,5 +1,12 @@
 ## Unreleased
 
+## v64.1.0 (2026-05-01)
+
+### Bug Fixes
+- **Audio click on hard reload at end of CSAI ad break** — field-observed on warn channel: hard reload to restore Source quality after autoplay (360p) escape-hatch backup produced an audible click/pop as the new MediaSource crossed a discontinuity boundary on first audio frames. Added a pre-mute right before `setSrc()`, restored on the `<video>` element's `canplay` event with a 1500ms safety cap. Trades the click for a brief silence (~100-300ms typical) that ends as soon as audio is decodable. Skipped if user was already muted, so user-mute intent is preserved. The existing 3000ms LS-restore timer remains as a backstop. (vaft hard reload only via `kind: 'early'`; video-swap-new every reload since `setSrc` always tears down MSE) (vaft + video-swap-new) (#189)
+- **video-swap-new reload cooldown defeating thin-cache early reload** — worker-triggered early-reload (`UboReloadPlayer`) was passing through the same `reloadTwitchPlayer` cooldown gate as buffer-monitor reloads, so the freeze-recovery fast path got blocked for the remainder of the cooldown window. Added `kind: 'early'` to the worker's postMessage; main-thread message handler threads it through to `reloadTwitchPlayer(isPausePlay, reloadKind)`; cooldown gate now bypasses on `kind === 'early'` while bookkeeping (timestamp, 90s auto-escalation on 3+ rapid reloads) still runs. Mirrors vaft's existing routing pattern (video-swap-new) (#188)
+- **video-swap-new misleading CSAI fast-path log** — `[AD DEBUG] CSAI fast path — all segments live, skipping backup search` was emitted once per break and read like a permanent state, but only described the poll on which it fired. When Twitch shifted mid-break from CSAI tracking pixels to SSAI stitched segments, the backup search legitimately fired — making field logs read as a contradiction. Reworded to be poll-scoped, added a new `[AD DEBUG] Playlist now contains stitched ad segments — CSAI fast path no longer applies, falling through to backup search` transition log that fires the first time the SSAI branch is taken in a break where the CSAI fast path log had previously fired. Pre-existing bug fixed: `HasLoggedCsaiFastPath` was never reset at end-of-break in the testing variant; now reset alongside the new `HasLoggedCsaiToSsaiTransition` flag (video-swap-new) (#188)
+
 ## v64.0.0 (2026-05-01)
 
 ### New Features
