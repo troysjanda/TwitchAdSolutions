@@ -139,6 +139,8 @@ twitch-videoad.js text/javascript
             AdBreakStartedAt: 0,
             PodLength: 1,
             CleanPlaylistCount: 0,
+            PendingAdEndAt: 0,
+            AdEndBounceCount: 0,
             ConsecutiveZeroStripBreaks: 0,
             SawCSAIFastPath: false,
             // Strip state
@@ -900,6 +902,13 @@ twitch-videoad.js text/javascript
             streamInfo.LastCleanNativePlaylistAt = Date.now();
         }
         if (haveAdTags) {
+            const adEndStalenessMs = 12000;
+            if (streamInfo.PendingAdEndAt && (Date.now() - streamInfo.PendingAdEndAt) < adEndStalenessMs) {
+                streamInfo.AdEndBounceCount = (streamInfo.AdEndBounceCount || 0) + 1;
+            } else {
+                streamInfo.PendingAdEndAt = 0;
+                streamInfo.AdEndBounceCount = 0;
+            }
             streamInfo.CleanPlaylistCount = 0;
             streamInfo.IsMidroll = textStr.includes('"MIDROLL"') || textStr.includes('"midroll"');
             if (!streamInfo.IsShowingAd) {
@@ -1295,10 +1304,19 @@ twitch-videoad.js text/javascript
                 postMessage({ key: 'ReloadPlayer', kind: 'early' });
             }
         } else if (streamInfo.IsShowingAd) {
+            if (!streamInfo.PendingAdEndAt) {
+                streamInfo.PendingAdEndAt = Date.now();
+            }
             streamInfo.CleanPlaylistCount++;
             // Check if the current playlist has live segments — if not, backup stream is dead
             const hasLiveSegments = textStr.includes(',live');
-            if (streamInfo.CleanPlaylistCount >= 3 || !hasLiveSegments) {
+            const adEndMaxWaitMs = 12000;
+            const elapsedSinceCandidate = Date.now() - streamInfo.PendingAdEndAt;
+            const slowPathReady = streamInfo.PendingAdEndAt > 0 && elapsedSinceCandidate >= adEndMaxWaitMs;
+            if (streamInfo.CleanPlaylistCount >= 3 || !hasLiveSegments || slowPathReady) {
+                if (slowPathReady && streamInfo.CleanPlaylistCount < 3) {
+                    console.log('[AD DEBUG] Slow-path ad-end escalation — ' + (streamInfo.AdEndBounceCount || 0) + ' marker bounces, ' + (elapsedSinceCandidate / 1000).toFixed(1) + 's since first clean poll');
+                }
                 if (!hasLiveSegments) {
                     console.log('[AD DEBUG] Backup stream has no live segments — forcing immediate reload');
                 }
@@ -1331,8 +1349,8 @@ twitch-videoad.js text/javascript
                 streamInfo.IsStrippingAdSegments = false;
                 streamInfo.NumStrippedAdSegments = 0;
                 streamInfo.ActiveBackupPlayerType = null;
-                streamInfo.RequestedAds.clear();
-                streamInfo.FailedBackupPlayerTypes.clear();
+                streamInfo.RequestedAds?.clear?.();
+                streamInfo.FailedBackupPlayerTypes?.clear?.();
                 // Clear pin if the pinned type was contaminated this break — avoids wasted
                 // first-try fetch on next break. Field-observed on pge4: PinnedBackupPlayerType
                 // gets set to the last-committed type via PinBackupPlayerType=true, but when
@@ -1344,6 +1362,8 @@ twitch-videoad.js text/javascript
                 if (streamInfo.LoggedBackupAdsByType) streamInfo.LoggedBackupAdsByType.clear();
                 streamInfo.LoggedContamReorderThisBreak = false;
                 streamInfo.CleanPlaylistCount = 0;
+                streamInfo.PendingAdEndAt = 0;
+                streamInfo.AdEndBounceCount = 0;
                 streamInfo.ConsecutiveAllStrippedPolls = 0;
                 streamInfo.EarlyReloadTriggered = false;
                 streamInfo.EarlyReloadAwaitingResult = false;
