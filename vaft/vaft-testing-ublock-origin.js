@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 619;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 620;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -1260,8 +1260,11 @@ twitch-videoad.js text/javascript
                     streamInfo.ActiveBackupPlayerType = backupPlayerType;
                     // Auto-pin source-quality backup types (embed, site, popout) to skip failed types on next break.
                     // Never auto-pin low-quality types (autoplay, mobile_web) to avoid quality lock.
+                    // Specifically: pinning 'autoplay' would move it from the last position in
+                    // playerTypesToTry to position 0, causing the iteration-end fallback to
+                    // commit a different ad-laden Source type instead of autoplay's 360p backup.
                     const sourceQualityTypes = ['embed', 'site', 'popout'];
-                    if (PinBackupPlayerType || sourceQualityTypes.includes(backupPlayerType)) {
+                    if ((PinBackupPlayerType && backupPlayerType !== 'autoplay') || sourceQualityTypes.includes(backupPlayerType)) {
                         streamInfo.PinnedBackupPlayerType = backupPlayerType;
                     }
                     console.log(`Blocking${(streamInfo.IsMidroll ? ' midroll ' : ' ')}ads (${backupPlayerType}) — backup found in ${Date.now() - backupSearchStart}ms`);
