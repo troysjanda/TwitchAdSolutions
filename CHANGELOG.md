@@ -1,5 +1,29 @@
 ## Unreleased
 
+## v64.0.0 (2026-05-01)
+
+### New Features
+- **Bounce-tolerant ad-end detection + slow-path max-wait gate** — adds `PendingAdEndAt` + `AdEndBounceCount` to StreamInfo. The first clean poll of a break sets the timestamp; subsequent ad-marker bounces within a 12s staleness window keep it alive (incrementing the bounce counter) instead of resetting. Independent slow-path escalation: if `>= 12s` has elapsed since first clean poll, the ad cycle ends regardless of `CleanPlaylistCount`. Without this, channels where Twitch flips markers in/out faster than the poll cadence could wedge the player on backup indefinitely. Mirrors TTV-AB v6.6.7 #1/#4. Logs `[AD DEBUG] Slow-path ad-end escalation` with bounce count + elapsed when the gate fires below threshold (vaft + video-swap-new) (#186)
+- **Real-time contamination-aware backup reorder** — at start of backup search, if `LoggedBackupAdsByType` has entries from earlier in the same break, move those types to the end of `playerTypesToTry` so untried/clean types get tried first on subsequent polls. Field-validated on `warn` channel where `site` was the first-tried (and contaminated) type (vaft) (#177)
+- **Clip editor + visibility de-spoof sync from TTV-AB** — early-return on `clips.twitch.tv` host or `/<channel>/clip/<slug>` path so the clip editor preview isn't frozen by ad-block hooks. Removed the `document.hidden` / `visibilityState` / `hasFocus` getter spoofs and the capture-stage `visibilitychange` swallow listener; replaced with a plain bubble-phase resume-on-focus listener. **BetterTTV's "Mute Invisible Player" works again** along with any other visibility-driven page script (vaft + video-swap-new) (#185)
+
+### Bug Fixes
+- **Require 3 consecutive clean polls before declaring ad-end** — was conditional `1 if NumStrippedAdSegments==0 else 2`. On SSAI-uniform channels (warn/pge4/dafran/emongg) where the backup-swap path commonly produces `NumStrippedAdSegments==0`, a single brief clean window mid-break would flip `IsShowingAd` false, then ad markers would re-inject and the worker would re-enter ad blocking 1-3 seconds later. TTV-AB hit the same false-positive at 2 probes and bumped to 3 in v6.6.7 ("Ad-End Re-Entry Stability") (vaft) (#184)
+- **HEVC fallback: copy AUDIO/VIDEO/SUBTITLES groups onto rewritten variant** — when 1440p HEVC variants are swapped for the closest non-HEVC URL in `ModifiedM3U8`, only the `CODECS` attribute was being rewritten. The `EXT-X-STREAM-INF` line kept the HEVC variant's `AUDIO`, `VIDEO`, and `SUBTITLES` group identifiers — pointing at media tracks the AVC backup may not actually carry, causing audio mismatch / desync / black screen at the HEVC→AVC handoff. Mirrors TTV-AB v6.7.5's parser fix (vaft) (#187)
+- **Lockout backup types that return GQL `server error`** — the `!spat` branch was the only failure mode that didn't mark `FailedBackupPlayerTypes`. Field-observed on `warn`: embed and autoplay returned `server error` ~34 times each per break before. Now the same 15s lockout applies, reducing in-break retries to ~4 per type and saving ~30 GQL round-trips per affected break (vaft) (#178)
+- **Reset `ConsecutiveZeroStripBreaks` on any positive signal** — the reset branch only fired on `hadStrippedSegments`, but the increment guard covers both `hadStrippedSegments` and `HasConfirmedAdAttrs`. Asymmetric — a real confirmed ad cleanly blocked via backup-swap (0 stripped + confirmed attrs) didn't reset prior suspicious history, leading to misleading false-positive warnings on subsequent breaks (vaft) (#180)
+- **Rate-limit position-jump drift detector to once per 30s** — repeated `[AD DEBUG] Drift correction: catching up at 1.1x` logs were firing on tight intervals during recovery, with each invocation re-arming an interval that overlapped previous ones. Wall-clock guard ensures at most one rearm per 30s (vaft) (#183)
+- **Preserve `lowLatencyModeEnabled` and `persistenceEnabled` across reloads** — these localStorage keys were missing from the post-reload preservation snapshot. Reloading reset them to defaults, breaking low-latency mode and persistence preferences for users who had explicitly toggled them (vaft + video-swap-new) (#172)
+
+### Performance
+- **Convert SERVER-TIME `.match(string)` and regex to literal** — two perf passes through `getServerTimeFromM3u8` and the SERVER-TIME parsing path. Both use compiled regex literals instead of string-arg `.match()` and `new RegExp(...)`, freeing the regex compiler from re-parsing on each m3u8 fetch (vaft + video-swap-new) (#174, #175)
+
+### Diagnostic Logging
+- **Differentiate autoplay pinned vs fallback in commit message** — when autoplay backup commits, the log now distinguishes "autoplay pinned (last-resort fallback)" from "autoplay (PreferLowQualityBackup escape hatch)" so post-mortems on field logs can tell which path engaged (vaft) (#181)
+
+### Tests
+- **Sync signifier tests + add benchmark harness** — keeps test fixtures aligned with the runtime AdSignifiers list, and adds a benchmark suite for hot-path m3u8 parsing so future perf changes can be measured (#176)
+
 ## v63.0.0 (2026-04-22)
 
 ### New Features
