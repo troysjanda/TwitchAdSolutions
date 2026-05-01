@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      617.0.0
+// @version      618.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 617;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 618;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -2005,8 +2005,51 @@
             // Soft reload for 'post-ad' (smooth transition, no black screen teardown).
             const hardReload = reloadKind === 'early';
             console.log('Reloading Twitch player' + (hardReload ? ' (hard)' : ' (soft)'));
+            // Pre-mute through hard reload to hide MSE-teardown audio click; restored on
+            // first decodable frame via fast-poll (cap 1500ms).
+            let preReloadMuted = null;
+            let preReloadVolume = null;
+            if (hardReload) {
+                try {
+                    const videos = document.getElementsByTagName('video');
+                    if (videos.length > 0) {
+                        preReloadMuted = videos[0].muted;
+                        preReloadVolume = videos[0].volume;
+                        if (!preReloadMuted) {
+                            videos[0].muted = true;
+                        }
+                    }
+                } catch {}
+            }
             playerState.setSrc({ isNewMediaPlayerInstance: hardReload, refreshAccessToken: hardReload });
             postTwitchWorkerMessage('TriggeredPlayerReload');
+            if (hardReload && preReloadMuted === false) {
+                let pollElapsed = 0;
+                const pollIntervalMs = 100;
+                const pollMaxMs = 1500;
+                const pollUnmute = () => {
+                    try {
+                        const videos = document.getElementsByTagName('video');
+                        if (videos.length > 0 && (videos[0].currentTime > 0 || videos[0].readyState >= 2)) {
+                            videos[0].muted = false;
+                            if (typeof preReloadVolume === 'number' && preReloadVolume > 0) {
+                                videos[0].volume = preReloadVolume;
+                            }
+                            return;
+                        }
+                    } catch {}
+                    pollElapsed += pollIntervalMs;
+                    if (pollElapsed < pollMaxMs) {
+                        setTimeout(pollUnmute, pollIntervalMs);
+                    } else {
+                        try {
+                            const videos = document.getElementsByTagName('video');
+                            if (videos.length > 0) videos[0].muted = false;
+                        } catch {}
+                    }
+                };
+                setTimeout(pollUnmute, pollIntervalMs);
+            }
             // Resume playback with retry — only if user hadn't manually paused
             if (!wasPaused) {
                 player.play()?.catch?.(() => {});
