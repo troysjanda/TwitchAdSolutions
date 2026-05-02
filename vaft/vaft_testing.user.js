@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      620.0.0
+// @version      621.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 620;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 621;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -1660,12 +1660,21 @@
                     const position = player.core?.state?.position;
                     const bufferedPosition = player.core?.state?.bufferedPosition;
                     const bufferDuration = player.getBufferDuration();
+                    // video.currentTime is the source of truth for actual playback progress —
+                    // state.position updates in batches and can appear frozen for ~12s while
+                    // the video element advances smoothly (PR #194 / issue #193).
+                    const videoEl = player.getHTMLVideoElement?.();
+                    const videoCurrentTime = videoEl?.currentTime;
                     if (position !== undefined && bufferedPosition !== undefined) {
                         //console.log('position:' + position + ' bufferDuration:' + bufferDuration + ' bufferPosition:' + bufferedPosition + ' state: ' + player.core?.state?.state + ' started: ' + playerBufferState.hasStreamStarted);
                         // NOTE: This could be improved. It currently lets the player fully eat the full buffer before it triggers pause/play
+                        // Stall trigger requires BOTH state.position AND video.currentTime to be
+                        // unchanged. If currentTime is advancing the player is playing fine.
+                        const positionFrozen = (playerBufferState.position == position) &&
+                            (playerBufferState.videoCurrentTime === undefined || playerBufferState.videoCurrentTime === videoCurrentTime);
                         if (playerBufferState.hasStreamStarted &&
                             (!PlayerBufferingPrerollCheckEnabled || position > PlayerBufferingPrerollCheckOffset) &&
-                            (playerBufferState.position == position || bufferDuration < PlayerBufferingDangerZone)  &&
+                            (positionFrozen || bufferDuration < PlayerBufferingDangerZone)  &&
                             playerBufferState.bufferedPosition == bufferedPosition &&
                             playerBufferState.bufferDuration >= bufferDuration &&
                             (position != 0 || bufferedPosition != 0 || bufferDuration != 0)
@@ -1724,6 +1733,7 @@
                             playerBufferState.lastDriftStartedAt = Date.now();
                         }
                         playerBufferState.position = position;
+                        playerBufferState.videoCurrentTime = videoCurrentTime;
                         playerBufferState.bufferedPosition = bufferedPosition;
                         playerBufferState.bufferDuration = bufferDuration;
                     } else {
