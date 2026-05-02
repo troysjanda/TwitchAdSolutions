@@ -1,5 +1,10 @@
 ## Unreleased
 
+## v65.1.0 (2026-05-02)
+
+### Bug Fixes
+- **Buffer-stall detector reload cascade in post-MSE-init state** — followup to v65.0.0's fix. The previous condition required both `state.position` and `video.currentTime` to be frozen before declaring stalled, but post-reload MSE init has both genuinely frozen at 0 (`currentTime=0` because nothing's decoded yet, `state.position=0` because the player just torn down, `paused=true` because the element isn't trying to advance, `readyState<2` because no current data is available). The detector counted these as same-state polls, escalated to another reload, the new MSE init produced the same 0/0/paused state, and the trigger fired again — reload loop. Added a top-level skip when `videoEl.readyState < 2 || videoEl.paused` — holds counters (neither increments nor resets) so a real stall sequence interrupted by a brief init dip resumes counting on the next active poll. Also catches the IVS-player-wrapper-vs-`<video>`.paused race during reload teardown / autoplay-policy mute toggles (vaft) (#195)
+
 ## v65.0.0 (2026-05-02)
 
 ### Bug Fixes
