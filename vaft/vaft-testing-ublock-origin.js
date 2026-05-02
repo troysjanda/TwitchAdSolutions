@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 621;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 622;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -1652,9 +1652,13 @@ twitch-videoad.js text/javascript
                     if (position !== undefined && bufferedPosition !== undefined) {
                         //console.log('position:' + position + ' bufferDuration:' + bufferDuration + ' bufferPosition:' + bufferedPosition + ' state: ' + player.core?.state?.state + ' started: ' + playerBufferState.hasStreamStarted);
                         // NOTE: This could be improved. It currently lets the player fully eat the full buffer before it triggers pause/play
+                        // Skip while <video> isn't actively playing (readyState < 2 or paused).
+                        const playerNotActivelyPlaying = videoEl && (videoEl.readyState < 2 || videoEl.paused);
                         const positionFrozen = (playerBufferState.position == position) &&
                             (playerBufferState.videoCurrentTime === undefined || playerBufferState.videoCurrentTime === videoCurrentTime);
-                        if (playerBufferState.hasStreamStarted &&
+                        if (playerNotActivelyPlaying) {
+                            // Hold counters — neither increment nor reset.
+                        } else if (playerBufferState.hasStreamStarted &&
                             (!PlayerBufferingPrerollCheckEnabled || position > PlayerBufferingPrerollCheckOffset) &&
                             (positionFrozen || bufferDuration < PlayerBufferingDangerZone)  &&
                             playerBufferState.bufferedPosition == bufferedPosition &&
