@@ -1,5 +1,10 @@
 ## Unreleased
 
+## v65.2.0 (2026-05-02)
+
+### Changed
+- **`EarlyReloadPollThreshold` default lowered 5 → 3** — release now matches the testing variant. The threshold gates how many consecutive all-stripped polls (each ~2s) must elapse before firing an early reload during heavy SSAI freezes. Previously `5` (~10s stuck), now `3` (~6s stuck). Field reports indicated testing felt smoother on SSAI-uniform channels (warn / emongg / mande / dafran) where every break exhausts the Source-tier backup search; this brings release in line. Existing safeguards (1-reload-per-recovery cap, 30s cooldown auto-escalating to 90s on 3+ rapid reloads, recent buffer-stall false-positive fixes) bound the downside of more aggressive triggering. Override via `localStorage.setItem('twitchAdSolutions_earlyReloadPollThreshold', '5')` to restore the old default (vaft) (#196)
+
 ## v65.1.0 (2026-05-02)
 
 ### Bug Fixes
