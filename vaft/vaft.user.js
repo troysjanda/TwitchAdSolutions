@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      65.2.0
+// @version      65.3.0
 // @description  Multiple solutions for blocking Twitch ads (vaft)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft.user.js
@@ -47,7 +47,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 70;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 71;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -1713,6 +1713,20 @@
                         // Hold counters (don't increment, don't reset): a real stall sequence interrupted
                         // by a brief init dip resumes counting on the next active poll.
                         const playerNotActivelyPlaying = videoEl && (videoEl.readyState < 2 || videoEl.paused);
+                        // FFZ's audio compressor wraps player.load() and creates a fresh <video>
+                        // element on every load (src/sites/shared/player.jsx replaceVideoElement).
+                        // Twitch's playback-monitor then snaps the new element to "buffered region
+                        // 0.04xxx" while the buffer rebuilds. During that brief ramp-up window,
+                        // currentTime plateaus and state.position is also at its post-reload reset
+                        // — exactly the positionFrozen pattern. Detect the swap by element identity
+                        // and treat it like a fresh reload (clear counters, set the recovery flag
+                        // so the next active poll grants grace).
+                        if (videoEl && playerBufferState.videoElement && playerBufferState.videoElement !== videoEl) {
+                            playerBufferState.numSame = 0;
+                            playerBufferState.fixAttempts = 0;
+                            playerBufferState.recoveryReloadUsed = false;
+                        }
+                        playerBufferState.videoElement = videoEl;
                         // Stall trigger: position-frozen check now requires BOTH state.position
                         // AND video.currentTime unchanged. If currentTime is advancing the player
                         // is playing fine and we should not "fix" anything — the false-fires
@@ -1724,7 +1738,14 @@
                             // Skip — neither increment nor reset, just hold state.
                         } else if (playerBufferState.hasStreamStarted &&
                             (!PlayerBufferingPrerollCheckEnabled || position > PlayerBufferingPrerollCheckOffset) &&
-                            (positionFrozen || bufferDuration < PlayerBufferingDangerZone)  &&
+                            // Tighten to AND: a real stall is BOTH frozen position AND a draining buffer.
+                            // Field reports on Firefox at live edge showed the OR form firing during normal
+                            // thin-buffer breathing (~1-2s buffered, currentTime briefly idle waiting on a
+                            // segment fetch) — pause/play would then knock the player back to readyState=1
+                            // and currentTime=0, snowballing into a self-reinforcing reload cascade. With
+                            // AND, real stalls (frozen + buffer drained below DangerZone) still fire on the
+                            // same poll cadence; healthy thin-buffer feeds no longer trip it.
+                            (positionFrozen && bufferDuration < PlayerBufferingDangerZone)  &&
                             playerBufferState.bufferedPosition == bufferedPosition &&
                             playerBufferState.bufferDuration >= bufferDuration &&
                             (position != 0 || bufferedPosition != 0 || bufferDuration != 0)

@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 70;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 71;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -1648,13 +1648,31 @@ twitch-videoad.js text/javascript
                         // reload teardown race with player.isPaused()). Hold counters so a real stall
                         // sequence interrupted by a brief init dip resumes counting on next active poll.
                         const playerNotActivelyPlaying = videoEl && (videoEl.readyState < 2 || videoEl.paused);
+                        // FFZ's audio compressor recreates the <video> element on every player.load().
+                        // Twitch then snaps the new element to "buffered region 0.04xxx" — a brief
+                        // currentTime plateau that matches positionFrozen even though playback is
+                        // healthy. Detect the swap by element identity and clear counters so the
+                        // ramp-up isn't counted as a stall.
+                        if (videoEl && playerBufferState.videoElement && playerBufferState.videoElement !== videoEl) {
+                            playerBufferState.numSame = 0;
+                            playerBufferState.fixAttempts = 0;
+                            playerBufferState.recoveryReloadUsed = false;
+                        }
+                        playerBufferState.videoElement = videoEl;
                         const positionFrozen = (playerBufferState.position == position) &&
                             (playerBufferState.videoCurrentTime === undefined || playerBufferState.videoCurrentTime === videoCurrentTime);
                         if (playerNotActivelyPlaying) {
                             // Skip — neither increment nor reset, just hold state.
                         } else if (playerBufferState.hasStreamStarted &&
                             (!PlayerBufferingPrerollCheckEnabled || position > PlayerBufferingPrerollCheckOffset) &&
-                            (positionFrozen || bufferDuration < PlayerBufferingDangerZone)  &&
+                            // Tighten to AND: a real stall is BOTH frozen position AND a draining buffer.
+                            // Field reports on Firefox at live edge showed the OR form firing during normal
+                            // thin-buffer breathing (~1-2s buffered, currentTime briefly idle waiting on a
+                            // segment fetch) — pause/play would then knock the player back to readyState=1
+                            // and currentTime=0, snowballing into a self-reinforcing reload cascade. With
+                            // AND, real stalls (frozen + buffer drained below DangerZone) still fire on the
+                            // same poll cadence; healthy thin-buffer feeds no longer trip it.
+                            (positionFrozen && bufferDuration < PlayerBufferingDangerZone)  &&
                             playerBufferState.bufferedPosition == bufferedPosition &&
                             playerBufferState.bufferDuration >= bufferDuration &&
                             (position != 0 || bufferedPosition != 0 || bufferDuration != 0)
