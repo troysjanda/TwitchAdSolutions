@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      623.0.0
+// @version      624.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 623;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 624;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -1702,7 +1702,12 @@
                             // Hold counters — neither increment nor reset.
                         } else if (playerBufferState.hasStreamStarted &&
                             (!PlayerBufferingPrerollCheckEnabled || position > PlayerBufferingPrerollCheckOffset) &&
-                            (positionFrozen || bufferDuration < PlayerBufferingDangerZone)  &&
+                            // Tighten to AND: a real stall is BOTH frozen position AND a draining buffer.
+                            // Field reports on Firefox at live edge showed the OR form firing during normal
+                            // thin-buffer breathing (~1-2s buffered, currentTime briefly idle waiting on a
+                            // segment fetch) — pause/play would then knock the player back to readyState=1
+                            // and currentTime=0, snowballing into a self-reinforcing reload cascade.
+                            (positionFrozen && bufferDuration < PlayerBufferingDangerZone)  &&
                             playerBufferState.bufferedPosition == bufferedPosition &&
                             playerBufferState.bufferDuration >= bufferDuration &&
                             (position != 0 || bufferedPosition != 0 || bufferDuration != 0)
