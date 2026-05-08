@@ -1107,7 +1107,9 @@ twitch-videoad.js text/javascript
             // detection — channel that goes from SSAI-uniform back to Source-clean recovers
             // on the very first probe of the next break, no missed full-quality breaks.
             streamInfo.HybridSkipSourceAfterFailure = (FastAutoplayFirstTry && streamInfo.LastBreakUsedEscapeHatch && PreferLowQualityBackup);
-            if (streamInfo.HybridSkipSourceAfterFailure && !streamInfo.LoggedFastAutoplayThisBreak) {
+            // Only log at start of new armed break (LoggedBackupAdsByType empty = pre-iteration).
+            if (streamInfo.HybridSkipSourceAfterFailure && !streamInfo.LoggedFastAutoplayThisBreak
+                && (!streamInfo.LoggedBackupAdsByType || streamInfo.LoggedBackupAdsByType.size === 0)) {
                 streamInfo.LoggedFastAutoplayThisBreak = true;
                 console.log('[AD DEBUG] FastAutoplayFirstTry hybrid armed — prior break exhausted Source-tier; will skip remaining Source probes on first contamination this break');
             }

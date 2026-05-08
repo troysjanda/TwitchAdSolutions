@@ -1132,7 +1132,15 @@
             // contamination of the break. Setting the intent here keeps the trigger logic
             // local to the iteration site.
             streamInfo.HybridSkipSourceAfterFailure = (FastAutoplayFirstTry && streamInfo.LastBreakUsedEscapeHatch && PreferLowQualityBackup);
-            if (streamInfo.HybridSkipSourceAfterFailure && !streamInfo.LoggedFastAutoplayThisBreak) {
+            // Only log "armed" at the START of a new armed break (LoggedBackupAdsByType empty
+            // means we haven't begun iteration yet this break). Suppresses the misleading
+            // post-commit re-poll fire — after autoplay commits, IsShowingAd remains true
+            // until end-of-break and the worker keeps polling, re-entering this code path
+            // with `armed` true but the iteration context already past. Without this gate,
+            // the "will skip remaining Source probes" wording fires after Source has already
+            // been exhausted in the same break, which is confusing.
+            if (streamInfo.HybridSkipSourceAfterFailure && !streamInfo.LoggedFastAutoplayThisBreak
+                && (!streamInfo.LoggedBackupAdsByType || streamInfo.LoggedBackupAdsByType.size === 0)) {
                 streamInfo.LoggedFastAutoplayThisBreak = true;
                 console.log('[AD DEBUG] FastAutoplayFirstTry hybrid armed — prior break exhausted Source-tier; will skip remaining Source probes on first contamination this break');
             }
