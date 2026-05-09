@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 634;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 633;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -162,11 +162,6 @@ twitch-videoad.js text/javascript
             LastCommittedBackupPlayerType: null,
             FailedBackupPlayerTypes: new Map(),// Map<playerType, timestamp> — failures expire after 15s for retry
             LoggedBackupAdsByType: null,// lazy-init to Set on first "backup has ads" log
-            // Sticky-on-CSAI tracking — once a Source-tier backup has been held for 2+
-            // polls in this break with zero strip activity, freeze the backup-search
-            // loop. Prevents cycle-thrashing on CSAI-only-but-marked channels.
-            NoStripPollsThisBreak: 0,
-            LoggedStickyMode: false,
             CycleRescuedThisBreak: false,
             LastBackupSwitch: 0,
             // Early reload
@@ -933,8 +928,6 @@ twitch-videoad.js text/javascript
         if (!streamInfo) {
             return textStr;
         }
-        // Snapshot strip count for sticky-mode no-strip-poll detection.
-        const _stripsAtPollStart = streamInfo.NumStrippedAdSegments || 0;
         if (HasTriggeredPlayerReload) {
             HasTriggeredPlayerReload = false;
             streamInfo.LastPlayerReload = Date.now();
@@ -986,8 +979,6 @@ twitch-videoad.js text/javascript
                 streamInfo.LastCommittedBackupPlayerType = null;
                 streamInfo.FreezeStartedAt = 0;
                 streamInfo.CycleRescuedThisBreak = false;
-                streamInfo.NoStripPollsThisBreak = 0;
-                streamInfo.LoggedStickyMode = false;
                 console.log('[AD DEBUG] Ad detected — type: ' + (streamInfo.IsMidroll ? 'midroll' : 'preroll') + ', channel: ' + streamInfo.ChannelName + ', pod: ' + podLength + ' ad(s) (~' + (podLength * 30) + 's expected), signifiers: ' + getMatchedAdSignifiers(textStr).join(', '));
                 if (!DisableAdSpoofing) {
                     notifyAdComplete(textStr);
@@ -1172,21 +1163,6 @@ twitch-videoad.js text/javascript
                     }
                 }
             }
-            // Sticky CSAI-only mode: when a Source-tier backup has been held for 2+
-            // polls with zero strip activity, freeze the backup search to avoid
-            // MSE-cycle thrash from re-cycling through alternate types.
-            const _inStickyMode = streamInfo.IsShowingAd &&
-                (streamInfo.NoStripPollsThisBreak || 0) >= 2 &&
-                streamInfo.LastCommittedBackupPlayerType &&
-                streamInfo.LastCommittedBackupPlayerType !== 'autoplay';
-            if (_inStickyMode) {
-                if (!streamInfo.LoggedStickyMode) {
-                    streamInfo.LoggedStickyMode = true;
-                    console.log('[AD DEBUG] Sticky CSAI-only mode — current backup ' + streamInfo.LastCommittedBackupPlayerType + ' producing clean output for 2+ polls, freezing backup search to avoid MSE-cycle thrash');
-                }
-                playerTypesToTry.length = 0;
-                playerTypesToTry.push(streamInfo.LastCommittedBackupPlayerType);
-            }
             for (let playerTypeIndex = startIndex; !backupM3u8 && playerTypeIndex < playerTypesToTry.length; playerTypeIndex++) {
                 const playerType = playerTypesToTry[playerTypeIndex];
                 const realPlayerType = playerType.replace('-CACHED', '');
@@ -1265,9 +1241,7 @@ twitch-videoad.js text/javascript
                                     }
                                     // Treat marked-but-empty CSAI-only m3u8s as clean — commit Source-tier
                                     // backup instead of falling through to autoplay 360p escape hatch.
-                                    // In sticky mode, force-treat the committed backup as clean so it
-                                    // re-commits this poll. Strip handles any markers in the m3u8.
-                                    const backupHasRealAds = !_inStickyMode && hasAdTags(m3u8Text) && hasStrippableAdSegments(m3u8Text);
+                                    const backupHasRealAds = hasAdTags(m3u8Text) && hasStrippableAdSegments(m3u8Text);
                                     if ((!backupHasRealAds && (SimulatedAdsDepth == 0 || playerTypeIndex >= SimulatedAdsDepth - 1)) || (!fallbackM3u8 && playerTypeIndex >= playerTypesToTry.length - 1)) {
                                         if ((streamInfo.ConsecutiveAllStrippedPolls || 0) >= 2 && !backupHasRealAds) {
                                             const prevType = streamInfo.LastCommittedBackupPlayerType;
@@ -1343,11 +1317,6 @@ twitch-videoad.js text/javascript
             // player (PR #124 from release). Check IsShowingAd to discard stale results.
             if (backupM3u8 && streamInfo.IsShowingAd) {
                 textStr = backupM3u8;
-                // Backup-type change resets the sticky no-strip streak.
-                if (streamInfo.LastCommittedBackupPlayerType !== backupPlayerType) {
-                    streamInfo.NoStripPollsThisBreak = 0;
-                    streamInfo.LoggedStickyMode = false;
-                }
                 streamInfo.LastCommittedBackupPlayerType = backupPlayerType;
                 if (streamInfo.ActiveBackupPlayerType != backupPlayerType) {
                     streamInfo.ActiveBackupPlayerType = backupPlayerType;
@@ -1393,16 +1362,6 @@ twitch-videoad.js text/javascript
                 textStr = stripAdSegments(textStr, stripHevc, streamInfo);
             } else if (!backupM3u8) {
                 console.log('[AD DEBUG] Ad stripping disabled and no backup — ads WILL show');
-            }
-            // Update sticky-mode no-strip counter (see _inStickyMode block above).
-            if (streamInfo.IsShowingAd) {
-                const _stripsThisPoll = (streamInfo.NumStrippedAdSegments || 0) - _stripsAtPollStart;
-                if (_stripsThisPoll > 0) {
-                    streamInfo.NoStripPollsThisBreak = 0;
-                    streamInfo.LoggedStickyMode = false;
-                } else {
-                    streamInfo.NoStripPollsThisBreak = (streamInfo.NoStripPollsThisBreak || 0) + 1;
-                }
             }
             // Log reload outcome on the poll after early reload triggered
             if (streamInfo.EarlyReloadAwaitingResult) {

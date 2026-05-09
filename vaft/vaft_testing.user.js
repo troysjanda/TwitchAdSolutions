@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      634.0.0
+// @version      633.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 634;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 633;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -175,14 +175,6 @@
             LoggedBackupAdsByType: null,// lazy-init to Set on first "backup has ads" log
             CycleRescuedThisBreak: false,
             LastBackupSwitch: 0,
-            // Sticky-on-CSAI tracking — once a Source-tier backup has been held for 2+
-            // polls in this break with zero strip activity, freeze the backup-search
-            // loop so we don't cycle through site → popout → mobile_web → embed during
-            // CSAI-only-but-marked breaks (emongg). The backup's m3u8 may have ad
-            // markers but no strippable segments; the strip handles markers, no need
-            // to swap. Each commit and each new break reset NoStripPollsThisBreak.
-            NoStripPollsThisBreak: 0,
-            LoggedStickyMode: false,
             // Early reload
             EarlyReloadCount: 0,
             EarlyReloadAtPoll: 0,
@@ -949,11 +941,6 @@
         if (!streamInfo) {
             return textStr;
         }
-        // Snapshot strip count at the start of this poll. Used after the strip pass
-        // to detect whether THIS poll produced any strip activity (vs accumulated
-        // across the whole break). Drives the sticky-CSAI-only mode that freezes the
-        // backup-search loop after 2 consecutive no-strip polls.
-        const _stripsAtPollStart = streamInfo.NumStrippedAdSegments || 0;
         if (HasTriggeredPlayerReload) {
             HasTriggeredPlayerReload = false;
             streamInfo.LastPlayerReload = Date.now();
@@ -1005,8 +992,6 @@
                 streamInfo.LastCommittedBackupPlayerType = null;
                 streamInfo.FreezeStartedAt = 0;
                 streamInfo.CycleRescuedThisBreak = false;
-                streamInfo.NoStripPollsThisBreak = 0;
-                streamInfo.LoggedStickyMode = false;
                 console.log('[AD DEBUG] Ad detected — type: ' + (streamInfo.IsMidroll ? 'midroll' : 'preroll') + ', channel: ' + streamInfo.ChannelName + ', pod: ' + podLength + ' ad(s) (~' + (podLength * 30) + 's expected), signifiers: ' + getMatchedAdSignifiers(textStr).join(', '));
                 if (!DisableAdSpoofing) {
                     notifyAdComplete(textStr);
@@ -1193,24 +1178,6 @@
                     }
                 }
             }
-            // Sticky CSAI-only mode: when a Source-tier backup has been held for 2+
-            // polls in this break with zero strip activity, the channel is reliably
-            // delivering CSAI (markers in m3u8 but no strippable segments). Don't
-            // re-cycle through alternate backups — each commit causes MSE state
-            // churn and produces a visible loading circle. Stick with the current
-            // backup; the strip continues to remove markers from its m3u8.
-            const _inStickyMode = streamInfo.IsShowingAd &&
-                (streamInfo.NoStripPollsThisBreak || 0) >= 2 &&
-                streamInfo.LastCommittedBackupPlayerType &&
-                streamInfo.LastCommittedBackupPlayerType !== 'autoplay';
-            if (_inStickyMode) {
-                if (!streamInfo.LoggedStickyMode) {
-                    streamInfo.LoggedStickyMode = true;
-                    console.log('[AD DEBUG] Sticky CSAI-only mode — current backup ' + streamInfo.LastCommittedBackupPlayerType + ' producing clean output for 2+ polls, freezing backup search to avoid MSE-cycle thrash');
-                }
-                playerTypesToTry.length = 0;
-                playerTypesToTry.push(streamInfo.LastCommittedBackupPlayerType);
-            }
             for (let playerTypeIndex = startIndex; !backupM3u8 && playerTypeIndex < playerTypesToTry.length; playerTypeIndex++) {
                 const playerType = playerTypesToTry[playerTypeIndex];
                 const realPlayerType = playerType.replace('-CACHED', '');
@@ -1289,10 +1256,7 @@
                                     }
                                     // Treat marked-but-empty CSAI-only m3u8s as clean — commit Source-tier
                                     // backup instead of falling through to autoplay 360p escape hatch.
-                                    // In sticky mode, force-treat the committed backup as clean so it
-                                    // re-commits this poll and the loop terminates. The strip will handle
-                                    // any markers in the m3u8.
-                                    const backupHasRealAds = !_inStickyMode && hasAdTags(m3u8Text) && hasStrippableAdSegments(m3u8Text);
+                                    const backupHasRealAds = hasAdTags(m3u8Text) && hasStrippableAdSegments(m3u8Text);
                                     if ((!backupHasRealAds && (SimulatedAdsDepth == 0 || playerTypeIndex >= SimulatedAdsDepth - 1)) || (!fallbackM3u8 && playerTypeIndex >= playerTypesToTry.length - 1)) {
                                         if ((streamInfo.ConsecutiveAllStrippedPolls || 0) >= 2 && !backupHasRealAds) {
                                             const prevType = streamInfo.LastCommittedBackupPlayerType;
@@ -1368,12 +1332,6 @@
             // player (PR #124 from release). Check IsShowingAd to discard stale results.
             if (backupM3u8 && streamInfo.IsShowingAd) {
                 textStr = backupM3u8;
-                // Reset sticky-mode counter on backup-type change so the streak only
-                // counts polls where the SAME backup has been held without strips.
-                if (streamInfo.LastCommittedBackupPlayerType !== backupPlayerType) {
-                    streamInfo.NoStripPollsThisBreak = 0;
-                    streamInfo.LoggedStickyMode = false;
-                }
                 streamInfo.LastCommittedBackupPlayerType = backupPlayerType;
                 if (streamInfo.ActiveBackupPlayerType != backupPlayerType) {
                     streamInfo.ActiveBackupPlayerType = backupPlayerType;
@@ -1420,20 +1378,6 @@
                 textStr = stripAdSegments(textStr, stripHevc, streamInfo);
             } else if (!backupM3u8) {
                 console.log('[AD DEBUG] Ad stripping disabled and no backup — ads WILL show');
-            }
-            // Update sticky-mode no-strip counter. Strips THIS poll = NumStripped now
-            // minus snapshot at poll start. Strip activity resets the streak; no
-            // activity increments it. After 2 consecutive no-strip polls with a
-            // Source-tier backup committed, the backup-search re-entry above goes
-            // sticky and stops cycling (see _inStickyMode block).
-            if (streamInfo.IsShowingAd) {
-                const _stripsThisPoll = (streamInfo.NumStrippedAdSegments || 0) - _stripsAtPollStart;
-                if (_stripsThisPoll > 0) {
-                    streamInfo.NoStripPollsThisBreak = 0;
-                    streamInfo.LoggedStickyMode = false;
-                } else {
-                    streamInfo.NoStripPollsThisBreak = (streamInfo.NoStripPollsThisBreak || 0) + 1;
-                }
             }
             // Log reload outcome on the poll after early reload triggered
             if (streamInfo.EarlyReloadAwaitingResult) {
