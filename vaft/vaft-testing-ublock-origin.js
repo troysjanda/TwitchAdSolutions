@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 631;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 630;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -297,7 +297,6 @@ twitch-videoad.js text/javascript
                 const newBlobStr = `
                     const pendingFetchRequests = new Map();
                     ${hasAdTags.toString()}
-                    ${hasStrippableAdSegments.toString()}
                     ${notifyAdComplete.toString()}
                     ${getMatchedAdSignifiers.toString()}
                     ${stripAdSegments.toString()}
@@ -626,23 +625,6 @@ twitch-videoad.js text/javascript
     }
     function hasAdTags(textStr) {
         return AdSignifiers.some((s) => textStr.includes(s));
-    }
-    // Mirrors per-segment strip criteria — distinguish "marked but empty" CSAI-only
-    // m3u8s from real SSAI breaks. Avoids unnecessary autoplay-360p escape hatch.
-    function hasStrippableAdSegments(textStr) {
-        let inCueOut = false;
-        const lines = textStr.split(/\r?\n/);
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            if (line.includes('EXT-X-CUE-OUT')) inCueOut = true;
-            else if (line.includes('EXT-X-CUE-IN')) inCueOut = false;
-            else if (line.startsWith('#EXTINF') && i + 1 < lines.length) {
-                if (!line.includes(',live') || inCueOut) return true;
-                const segUrl = lines[i + 1];
-                if (typeof segUrl === 'string' && AdSegmentURLPatterns.some(p => segUrl.includes(p))) return true;
-            }
-        }
-        return false;
     }
     // Spoof ad completion events to Twitch's backend to clear the ad state
     function notifyAdComplete(textStr) {
@@ -1239,11 +1221,8 @@ twitch-videoad.js text/javascript
                                     if (playerType == FallbackPlayerType) {
                                         fallbackM3u8 = m3u8Text;
                                     }
-                                    // Treat marked-but-empty CSAI-only m3u8s as clean — commit Source-tier
-                                    // backup instead of falling through to autoplay 360p escape hatch.
-                                    const backupHasRealAds = hasAdTags(m3u8Text) && hasStrippableAdSegments(m3u8Text);
-                                    if ((!backupHasRealAds && (SimulatedAdsDepth == 0 || playerTypeIndex >= SimulatedAdsDepth - 1)) || (!fallbackM3u8 && playerTypeIndex >= playerTypesToTry.length - 1)) {
-                                        if ((streamInfo.ConsecutiveAllStrippedPolls || 0) >= 2 && !backupHasRealAds) {
+                                    if ((!hasAdTags(m3u8Text) && (SimulatedAdsDepth == 0 || playerTypeIndex >= SimulatedAdsDepth - 1)) || (!fallbackM3u8 && playerTypeIndex >= playerTypesToTry.length - 1)) {
+                                        if ((streamInfo.ConsecutiveAllStrippedPolls || 0) >= 2 && !hasAdTags(m3u8Text)) {
                                             const prevType = streamInfo.LastCommittedBackupPlayerType;
                                             if (prevType && prevType !== playerType) {
                                                 console.log('[AD DEBUG] Cycle switched to different clean type (' + playerType + ', was ' + prevType + ') during freeze — recovered without reload');
@@ -1260,7 +1239,7 @@ twitch-videoad.js text/javascript
                                         backupM3u8 = m3u8Text;
                                         break;
                                     }
-                                    if (backupHasRealAds) {
+                                    if (hasAdTags(m3u8Text)) {
                                         if (!streamInfo.LoggedBackupAdsByType) streamInfo.LoggedBackupAdsByType = new Set();
                                         if (!streamInfo.LoggedBackupAdsByType.has(playerType)) {
                                             streamInfo.LoggedBackupAdsByType.add(playerType);
