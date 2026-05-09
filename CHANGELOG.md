@@ -1,5 +1,10 @@
 ## Unreleased
 
+## v66.1.0 (2026-05-09)
+
+### Bug Fixes
+- **Buffer-stall trigger cascading on thin-but-functional buffer at live edge** — field log on v66.0.0 captured a 4-fire cascade of `Attempt to fix buffering` on a heavy SSAI-uniform / autoplay-360p watch session. All four fires had `bufferDuration` legitimately under the 1s `PlayerBufferingDangerZone` (0.866 / 0.798 / 0.924 / 0.290) — PR #199's AND check was correctly identifying real momentary stalls (positionFrozen + thin buffer), but the pause/play "fix" interacts destructively with Twitch's playback-monitor: after the pause/play, Twitch responds with `Play - moving to buffered region 0.04xxx`, snapping the player back to near-zero on the new buffered region. Each cycle's currentTime ends up *lower* than the previous (`17.2 → 15.6 → 13.1 → 7.6` across 4 fires in 38s). Lowered `PlayerBufferingDangerZone` from 1 → 0.5 to restrict firing to truly-drained buffer (<0.5s) where pause/play recovery is unambiguously beneficial. The 0.5-1s "thin but functional" range now self-recovers without our intervention. Three of the four cascade fires above would now be skipped; the remaining 0.290 fire is a single intervention with no follow-up cascade (vaft) (#208)
+
 ## v66.0.0 (2026-05-09)
 
 ### Bug Fixes
