@@ -2121,8 +2121,11 @@
             // Soft reload for 'post-ad' (smooth transition, no black screen teardown).
             const hardReload = reloadKind === 'early';
             console.log('Reloading Twitch player' + (hardReload ? ' (hard)' : ' (soft)'));
-            // Pre-mute through hard reload to hide MSE-teardown audio click; restored on
-            // `canplay` with 1500ms safety cap. Skipped if user already muted.
+            // Pre-mute through hard reload to hide MSE-teardown audio click. Multi-event
+            // restore (canplay/playing/loadeddata, first-fired wins) with 4000ms safety
+            // setTimeout. Skipped if user already muted. 5500ms backstop force-unmute
+            // catches Twitch LS-restore re-mute at ~3000ms (preserves user-pause-intent).
+            // Issue #200 / PR #201 / PR #206.
             if (hardReload) {
                 try {
                     const v = document.querySelector('video');
