@@ -1,5 +1,17 @@
 ## Unreleased
 
+## v66.0.0 (2026-05-09)
+
+### Bug Fixes
+- **Pre-mute restore on hard reload still left users muted on Edge** — followup to PR #201 in v65.4.0. Field reports on issue [#200](https://github.com/ryanbr/TwitchAdSolutions/issues/200) confirmed the regression was *reduced* but not eliminated: Edge's MSE init occasionally exceeded the 2500ms safety net, OR Twitch's own LS-restore at ~3000ms re-muted after our successful canplay-driven unmute. Three-layer fix: (1) listen for `loadeddata` and `playing` alongside `canplay` — Edge dispatches these independently, first-fired wins via the existing idempotent `done` guard; (2) safety setTimeout bumped 2500ms → 4000ms; (3) (vaft only) backstop force-unmute at 5500ms — if the element is *still* muted at that point AND `playerBufferState.userPauseIntent` isn't set, force one more unmute (idempotent, preserves user-mute intent). Logs `[AD DEBUG] Hard reload backstop unmute fired — element was still muted at 5500ms` when the backstop path engages, so future failures can be diagnosed conclusively (vaft + video-swap-new) (#206)
+
+### Detection Improvements
+- **`EXT-X-DATERANGE:CLASS="twitch-trigger"` recognized as ad signifier** — the "Potential ad markers seen but not in AdSignifiers" diagnostic logged this DATERANGE class consistently across multiple SSAI-uniform channels (`mande`, `nicewigg`, `thatmartinkidtv`, `fifakillvizualz`, `warn`, `slvm`, `imnio`, `timthetatman`) for several weeks of organic surveillance. Always observed in ad-detected polls, never seen outside an active ad break. Adding it to `AdSignifiers` lets `hasAdTags()` recognize ad m3u8s on the first poll, eliminating a previously-observed false-recovery loop on these channels (site appeared clean on poll 1 because recognized markers hadn't materialized yet, then dirty on poll 2 — the FastAutoplayFirstTry hybrid recovery path was firing falsely as a result). Sibling DATERANGE classes (`twitch-session`, `twitch-stream-source`) are session/source metadata and remain in the candidates list as non-ad markers (vaft + video-swap-new) (#207)
+
+### Robustness
+- **Worker prototype manipulation per-link try-catch** — `getCleanWorker()` and `reinsertWorkers()` walk the `Worker` prototype chain calling `Object.setPrototypeOf()` on each link. If a foreign extension or page script has frozen `Worker.prototype` or made `[[Prototype]]` non-configurable, those calls throw `TypeError`, propagate up out of `hookWindowWorker`, and ad blocking silently fails for the session. Per-link try-catch lets the chain walk continue past a single foreign-frozen link instead of aborting entirely. Mirrors TTV-AB v7.0.1's "Worker Hook Crash Resilience" fix (vaft + video-swap-new) (#203)
+- **Worker `eval(workerString)` crash guard** — inside the worker blob, `eval(workerString)` executes Twitch's fetched player logic. If the workerString is malformed (Twitch ships a blob format change, network corruption returns partial JS), the throw goes uncaught inside the worker — fires an `error` event but doesn't kill the worker per HTML spec, so vaft's hooks stay alive but Twitch's logic never runs, producing weird init issues with no diagnostic. Wrap the eval in try-catch with `console.error('[AD DEBUG] Worker eval failed — Twitch player logic not loaded:', e)` so the failure mode surfaces. Mirrors TTV-AB v6.8.0's "Worker eval Crash Guard" fix (vaft + video-swap-new) (#204)
+
 ## v65.4.0 (2026-05-08)
 
 ### Bug Fixes
