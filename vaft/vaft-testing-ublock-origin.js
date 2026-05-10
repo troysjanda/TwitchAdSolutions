@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 631;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 632;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -2106,9 +2106,14 @@ twitch-videoad.js text/javascript
                         setTimeout(() => {
                             try {
                                 const cur = document.querySelector('video');
-                                if (cur && cur.muted && !playerBufferState.userPauseIntent) {
-                                    cur.muted = false;
-                                    console.log('[AD DEBUG] Hard reload backstop unmute fired — element was still muted at 5500ms');
+                                if (cur && cur.muted) {
+                                    if (playerBufferState.userPauseIntent) {
+                                        // Diagnostic for issue #200 — see vaft_testing.user.js for rationale.
+                                        console.log('[AD DEBUG] Hard reload backstop SKIPPED — element muted at 5500ms but userPauseIntent set (likely false-positive pause event during MSE teardown — issue #200 follow-up)');
+                                    } else {
+                                        cur.muted = false;
+                                        console.log('[AD DEBUG] Hard reload backstop unmute fired — element was still muted at 5500ms');
+                                    }
                                 }
                             } catch {}
                         }, 5500);

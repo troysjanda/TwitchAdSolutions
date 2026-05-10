@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      631.0.0
+// @version      632.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 631;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 632;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -2128,9 +2128,19 @@
                         setTimeout(() => {
                             try {
                                 const cur = document.querySelector('video');
-                                if (cur && cur.muted && !playerBufferState.userPauseIntent) {
-                                    cur.muted = false;
-                                    console.log('[AD DEBUG] Hard reload backstop unmute fired — element was still muted at 5500ms');
+                                if (cur && cur.muted) {
+                                    if (playerBufferState.userPauseIntent) {
+                                        // Diagnostic for issue #200 (Tgod1991): backstop currently skips
+                                        // unmute when userPauseIntent is set. Pause events fired during
+                                        // MSE teardown can falsely set this flag, leaving the user
+                                        // persistently muted after the LS-restore re-mute at ~3s. Logging
+                                        // here so we can confirm whether this is the actual cause before
+                                        // changing behavior.
+                                        console.log('[AD DEBUG] Hard reload backstop SKIPPED — element muted at 5500ms but userPauseIntent set (likely false-positive pause event during MSE teardown — issue #200 follow-up)');
+                                    } else {
+                                        cur.muted = false;
+                                        console.log('[AD DEBUG] Hard reload backstop unmute fired — element was still muted at 5500ms');
+                                    }
                                 }
                             } catch {}
                         }, 5500);
