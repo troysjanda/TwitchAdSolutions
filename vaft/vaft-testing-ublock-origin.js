@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 632;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 633;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -2081,11 +2081,13 @@ twitch-videoad.js text/javascript
             if (hardReload) {
                 try {
                     const v = document.querySelector('video');
+                    // Issue #200 diagnostic — see vaft_testing.user.js for rationale.
+                    console.log('[AD DEBUG] Pre-mute entry — v=' + (v ? 'present' : 'null') + ', v.muted=' + (v ? v.muted : 'n/a') + ', branch=' + (v && !v.muted ? 'pre-mute' : (v && v.muted ? 'already-muted-skip' : 'no-video-skip')));
                     if (v && !v.muted) {
                         v.muted = true;
                         // Multi-event restore + Edge slow-init backstop — issue #200 follow-up.
                         let done = false;
-                        const restore = () => {
+                        const restore = (sourceEvent) => {
                             if (done) return;
                             done = true;
                             document.removeEventListener('canplay', listener, true);
@@ -2093,22 +2095,25 @@ twitch-videoad.js text/javascript
                             document.removeEventListener('loadeddata', listener, true);
                             try {
                                 const cur = document.querySelector('video');
+                                const trigger = sourceEvent && sourceEvent.type ? sourceEvent.type : 'safety-timeout(4000ms)';
+                                const targetMatch = (sourceEvent && sourceEvent.target && sourceEvent.target.tagName === 'VIDEO') ? (cur === sourceEvent.target ? 'same' : 'different') : 'n/a';
+                                console.log('[AD DEBUG] Restore — trigger=' + trigger + ', cur=' + (cur ? 'present' : 'null') + ', cur.muted-before=' + (cur ? cur.muted : 'n/a') + ', target-match=' + targetMatch);
                                 if (cur) cur.muted = false;
                             } catch {}
                         };
                         const listener = (e) => {
-                            if (e.target && e.target.tagName === 'VIDEO') restore();
+                            if (e.target && e.target.tagName === 'VIDEO') restore(e);
                         };
                         document.addEventListener('canplay', listener, true);
                         document.addEventListener('playing', listener, true);
                         document.addEventListener('loadeddata', listener, true);
-                        setTimeout(restore, 4000);
+                        setTimeout(() => restore(null), 4000);
                         setTimeout(() => {
                             try {
                                 const cur = document.querySelector('video');
+                                console.log('[AD DEBUG] Backstop @5500ms — cur=' + (cur ? 'present' : 'null') + ', cur.muted=' + (cur ? cur.muted : 'n/a') + ', userPauseIntent=' + !!playerBufferState.userPauseIntent + ', restore-fired=' + done);
                                 if (cur && cur.muted) {
                                     if (playerBufferState.userPauseIntent) {
-                                        // Diagnostic for issue #200 — see vaft_testing.user.js for rationale.
                                         console.log('[AD DEBUG] Hard reload backstop SKIPPED — element muted at 5500ms but userPauseIntent set (likely false-positive pause event during MSE teardown — issue #200 follow-up)');
                                     } else {
                                         cur.muted = false;
