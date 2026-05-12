@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      634.0.0
+// @version      635.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 634;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 635;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -2104,22 +2104,18 @@
                 try {
                     const v = document.querySelector('video');
                     const wasInitiallyUnmuted = v && !v.muted;
-                    // Issue #200 root cause confirmed via v633 diagnostic logs (Tgod1991):
-                    // Twitch silently re-mutes the video element between ad breaks (after our
-                    // 5500ms backstop window). On the NEXT hard reload, v.muted is already
-                    // true, and the previous "skip if already muted" guard prevented us from
-                    // recovering — user stayed muted across breaks until they manually
-                    // unmute/mute/unmute. Fix: always set up restore + backstop on hard
-                    // reload (when v exists), regardless of initial mute state. Only the
-                    // pre-mute itself (v.muted = true) is conditional on initial state.
-                    console.log('[AD DEBUG] Pre-mute entry — v=' + (v ? 'present' : 'null') + ', v.muted=' + (v ? v.muted : 'n/a') + ', branch=' + (v && !v.muted ? 'pre-mute' : (v && v.muted ? 'already-muted-recover' : 'no-video-skip')));
-                    if (v) {
+                    // Issue #200 fix v635: set up restore+backstop on hard reload when either
+                    // (a) we're about to pre-mute (was unmuted), or (b) element is already
+                    // muted AND lastVaftUnmute is within the last 10min — strong signal of
+                    // silent Twitch re-mute rather than user action. Protects users who muted
+                    // from session start (lastVaftUnmute=0 short-circuits the check).
+                    const recentVaftUnmute = playerBufferState.lastVaftUnmute && (Date.now() - playerBufferState.lastVaftUnmute) < 600000;
+                    const shouldSetup = v && (wasInitiallyUnmuted || recentVaftUnmute);
+                    console.log('[AD DEBUG] Pre-mute entry — v=' + (v ? 'present' : 'null') + ', v.muted=' + (v ? v.muted : 'n/a') + ', branch=' + (v && !v.muted ? 'pre-mute' : (v && v.muted ? (recentVaftUnmute ? 'already-muted-recover' : 'already-muted-respect') : 'no-video-skip')) + ', lastVaftUnmute=' + (playerBufferState.lastVaftUnmute || 'never') + (recentVaftUnmute ? ' (recent)' : ''));
+                    if (shouldSetup) {
                         if (wasInitiallyUnmuted) {
                             v.muted = true;
                         }
-                        // Multi-event restore + 5500ms backstop. Set up regardless of initial
-                        // mute state to handle both (a) our own pre-mute restoration, and (b)
-                        // Twitch's silent re-mute pattern across reloads.
                         let done = false;
                         const restore = (sourceEvent) => {
                             if (done) return;
@@ -2132,7 +2128,10 @@
                                 const trigger = sourceEvent && sourceEvent.type ? sourceEvent.type : 'safety-timeout(4000ms)';
                                 const targetMatch = (sourceEvent && sourceEvent.target && sourceEvent.target.tagName === 'VIDEO') ? (cur === sourceEvent.target ? 'same' : 'different') : 'n/a';
                                 console.log('[AD DEBUG] Restore — trigger=' + trigger + ', cur=' + (cur ? 'present' : 'null') + ', cur.muted-before=' + (cur ? cur.muted : 'n/a') + ', target-match=' + targetMatch + ', initial-mute=' + (wasInitiallyUnmuted ? 'unmuted' : 'already-muted'));
-                                if (cur) cur.muted = false;
+                                if (cur) {
+                                    cur.muted = false;
+                                    playerBufferState.lastVaftUnmute = Date.now();
+                                }
                             } catch {}
                         };
                         const listener = (e) => {
@@ -2151,6 +2150,7 @@
                                         console.log('[AD DEBUG] Hard reload backstop SKIPPED — element muted at 5500ms but userPauseIntent set (likely false-positive pause event during MSE teardown — issue #200 follow-up)');
                                     } else {
                                         cur.muted = false;
+                                        playerBufferState.lastVaftUnmute = Date.now();
                                         console.log('[AD DEBUG] Hard reload backstop unmute fired — element was still muted at 5500ms (initial: ' + (wasInitiallyUnmuted ? 'unmuted, we pre-muted' : 'already-muted on entry — recovering from silent Twitch re-mute') + ')');
                                     }
                                 }

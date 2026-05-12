@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 634;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 635;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -2082,9 +2082,11 @@ twitch-videoad.js text/javascript
                 try {
                     const v = document.querySelector('video');
                     const wasInitiallyUnmuted = v && !v.muted;
-                    // Issue #200 fix — see vaft_testing.user.js for rationale.
-                    console.log('[AD DEBUG] Pre-mute entry — v=' + (v ? 'present' : 'null') + ', v.muted=' + (v ? v.muted : 'n/a') + ', branch=' + (v && !v.muted ? 'pre-mute' : (v && v.muted ? 'already-muted-recover' : 'no-video-skip')));
-                    if (v) {
+                    // Issue #200 fix v635 — see vaft_testing.user.js for rationale.
+                    const recentVaftUnmute = playerBufferState.lastVaftUnmute && (Date.now() - playerBufferState.lastVaftUnmute) < 600000;
+                    const shouldSetup = v && (wasInitiallyUnmuted || recentVaftUnmute);
+                    console.log('[AD DEBUG] Pre-mute entry — v=' + (v ? 'present' : 'null') + ', v.muted=' + (v ? v.muted : 'n/a') + ', branch=' + (v && !v.muted ? 'pre-mute' : (v && v.muted ? (recentVaftUnmute ? 'already-muted-recover' : 'already-muted-respect') : 'no-video-skip')) + ', lastVaftUnmute=' + (playerBufferState.lastVaftUnmute || 'never') + (recentVaftUnmute ? ' (recent)' : ''));
+                    if (shouldSetup) {
                         if (wasInitiallyUnmuted) {
                             v.muted = true;
                         }
@@ -2100,7 +2102,10 @@ twitch-videoad.js text/javascript
                                 const trigger = sourceEvent && sourceEvent.type ? sourceEvent.type : 'safety-timeout(4000ms)';
                                 const targetMatch = (sourceEvent && sourceEvent.target && sourceEvent.target.tagName === 'VIDEO') ? (cur === sourceEvent.target ? 'same' : 'different') : 'n/a';
                                 console.log('[AD DEBUG] Restore — trigger=' + trigger + ', cur=' + (cur ? 'present' : 'null') + ', cur.muted-before=' + (cur ? cur.muted : 'n/a') + ', target-match=' + targetMatch + ', initial-mute=' + (wasInitiallyUnmuted ? 'unmuted' : 'already-muted'));
-                                if (cur) cur.muted = false;
+                                if (cur) {
+                                    cur.muted = false;
+                                    playerBufferState.lastVaftUnmute = Date.now();
+                                }
                             } catch {}
                         };
                         const listener = (e) => {
@@ -2119,6 +2124,7 @@ twitch-videoad.js text/javascript
                                         console.log('[AD DEBUG] Hard reload backstop SKIPPED — element muted at 5500ms but userPauseIntent set (likely false-positive pause event during MSE teardown — issue #200 follow-up)');
                                     } else {
                                         cur.muted = false;
+                                        playerBufferState.lastVaftUnmute = Date.now();
                                         console.log('[AD DEBUG] Hard reload backstop unmute fired — element was still muted at 5500ms (initial: ' + (wasInitiallyUnmuted ? 'unmuted, we pre-muted' : 'already-muted on entry — recovering from silent Twitch re-mute') + ')');
                                     }
                                 }
