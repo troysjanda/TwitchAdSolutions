@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 636;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 637;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -2133,6 +2133,11 @@ twitch-videoad.js text/javascript
                         }, 5500);
                     }
                 } catch {}
+            }
+            // Filter MSE-teardown pause events from tripping userPauseIntent during
+            // the reload window — v637 follow-up to v636 (issue #200).
+            if (hardReload) {
+                playerBufferState.weJustPaused = Date.now();
             }
             playerState.setSrc({ isNewMediaPlayerInstance: hardReload, refreshAccessToken: hardReload });
             postTwitchWorkerMessage('TriggeredPlayerReload');
