@@ -1,6 +1,6 @@
 ## Unreleased
 
-## v66.3.0 (2026-05-14)
+## v67.0.0 (2026-05-14)
 
 ### Bug Fixes
 - **Worker early-reload state wedged after main-thread healthy-skip** — when the main thread skipped a reload because the player was healthy (`Skipping reload — player healthy (readyState=..., playing, latency=...s)` path), it returned silently without notifying the worker. The worker's `EarlyReloadTriggered` / `EarlyReloadAwaitingResult` flags stayed set, blocking subsequent early-reload firings in the same break even if a later poll legitimately called for one. Now sends `postTwitchWorkerMessage('ReloadSkipped')` before returning; worker-side handler clears the flags on receipt and decrements `EarlyReloadCount` so budget is preserved. Mirrors the testing variant's behavior. Logs `[AD DEBUG] Reload skipped by main thread (player healthy) — early reload state cleared, can retry` when the worker clears (vaft) (#NN)
