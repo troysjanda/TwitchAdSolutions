@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 637;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 638;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -77,7 +77,7 @@ twitch-videoad.js text/javascript
         scope.FallbackPlayerType = 'site';// was 'embed' — site is more reliable when all Source types end up ad-laden
         scope.ForceAccessTokenPlayerType = 'popout';
         scope.PreferLowQualityBackup = true;// Hybrid safety net for SSAI-heavy breaks: sticky escape hatch (fires after ~8s stuck in all-stripped state) + autoplay (360p) as last-resort backup when all Source types are ad-laden. Default on; set twitchAdSolutions_preferLowQualityBackup=false to disable.
-        scope.FastAutoplayFirstTry = false;// Opt-in: prepend autoplay when prior break exhausted Source-tier. twitchAdSolutions_fastAutoplayFirstTry=true.
+        scope.FastAutoplayFirstTry = true;// Prepend autoplay when prior break exhausted Source-tier. Default on as of v638. Opt-out: twitchAdSolutions_fastAutoplayFirstTry=false.
         scope.BackupSwapFirst = true;// On ad detect, immediately swap to a backup player-type m3u8 (TTV-AB-style). Avoids MediaSource mixing from strip activity — fewer loading circles in field. Cost: extra fetches on every ad break. Default on; set twitchAdSolutions_backupSwapFirst=false to disable.
         scope.RecoverFromSilentMute = true;// Issue #200: recover from silent Twitch re-mute on hard reload. Default on; set twitchAdSolutions_recoverFromSilentMute=false to disable.
         scope.SkipPlayerReloadOnHevc = false;// If true this will skip player reload on streams which have 2k/4k quality (if you enable this and you use the 2k/4k quality setting you'll get error #4000 / #3000 / spinning wheel on chrome based browsers)
@@ -2401,9 +2401,9 @@ twitch-videoad.js text/javascript
             console.log('[AD DEBUG] PreferLowQualityBackup disabled via localStorage — sticky CSAI path only, no autoplay fallback or escape hatch');
         }
         const lsFastAutoplay = localStorage.getItem('twitchAdSolutions_fastAutoplayFirstTry');
-        if (lsFastAutoplay === 'true') {
-            FastAutoplayFirstTry = true;
-            console.log('[AD DEBUG] FastAutoplayFirstTry enabled via localStorage');
+        if (lsFastAutoplay === 'false') {
+            FastAutoplayFirstTry = false;
+            console.log('[AD DEBUG] FastAutoplayFirstTry disabled via localStorage');
         }
         const lsBackupSwapFirst = localStorage.getItem('twitchAdSolutions_backupSwapFirst');
         if (lsBackupSwapFirst === 'false') {
