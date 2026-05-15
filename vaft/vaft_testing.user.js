@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      638.0.0
+// @version      639.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 638;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 639;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -183,6 +183,7 @@
             EarlyReloadAwaitingResult: false,
             EscapeHatchFired: false,
             LastBreakUsedEscapeHatch: false,// FastAutoplayFirstTry signal — set when break commits autoplay via PreferLowQualityBackup escape hatch. Reset when Source-tier wins.
+            FastAutoplayConsecutive: 0,// Re-probe counter — periodic full Source-tier probe to catch channel recovery.
             // Reload cooldown
             LastPlayerReload: 0,
             ReloadTimestamps: [],
@@ -1126,16 +1127,27 @@
                     playerTypesToTry.unshift(streamInfo.PinnedBackupPlayerType);
                 }
             }
-            // FastAutoplayFirstTry: prepend autoplay when prior break exhausted Source-tier
-            // (SSAI-uniform signal). Saves ~1.5s of probe buffering.
+            // FastAutoplayFirstTry: prepend autoplay when prior break exhausted Source-tier.
+            // Periodic re-probe every Nth consecutive fast-autoplay win — catches channel
+            // recovery (Twitch reversing CSAI delivery).
             if (FastAutoplayFirstTry && streamInfo.LastBreakUsedEscapeHatch && PreferLowQualityBackup) {
-                const autoplayIdx = playerTypesToTry.indexOf('autoplay');
-                if (autoplayIdx > 0) {
-                    playerTypesToTry.splice(autoplayIdx, 1);
-                    playerTypesToTry.unshift('autoplay');
-                    if (!streamInfo.LoggedFastAutoplayThisBreak) {
-                        streamInfo.LoggedFastAutoplayThisBreak = true;
-                        console.log('[AD DEBUG] Fast-autoplay first-try — prior break exhausted Source-tier; probing autoplay first');
+                const FastAutoplayReprobeInterval = 5;
+                const consecutive = streamInfo.FastAutoplayConsecutive || 0;
+                if (consecutive >= FastAutoplayReprobeInterval) {
+                    streamInfo.FastAutoplayConsecutive = 0;
+                    if (!streamInfo.LoggedFastAutoplayReprobeThisBreak) {
+                        streamInfo.LoggedFastAutoplayReprobeThisBreak = true;
+                        console.log('[AD DEBUG] Fast-autoplay re-probe — testing Source-tier after ' + consecutive + ' consecutive fast-autoplay breaks (channel-recovery check)');
+                    }
+                } else {
+                    const autoplayIdx = playerTypesToTry.indexOf('autoplay');
+                    if (autoplayIdx > 0) {
+                        playerTypesToTry.splice(autoplayIdx, 1);
+                        playerTypesToTry.unshift('autoplay');
+                        if (!streamInfo.LoggedFastAutoplayThisBreak) {
+                            streamInfo.LoggedFastAutoplayThisBreak = true;
+                            console.log('[AD DEBUG] Fast-autoplay first-try — prior break exhausted Source-tier; probing autoplay first');
+                        }
                     }
                 }
             }
@@ -1333,17 +1345,17 @@
                         const sourceTried = streamInfo.LoggedBackupAdsByType?.size || 0;
                         if (sourceTried === 0) {
                             console.log('[AD DEBUG] Autoplay backup committed — 360p pinned from prior break (PreferLowQualityBackup)');
+                            streamInfo.FastAutoplayConsecutive = (streamInfo.FastAutoplayConsecutive || 0) + 1;
                         } else {
                             console.log('[AD DEBUG] Autoplay backup committed — 360p fallback after ' + sourceTried + ' Source type(s) ad-laden (PreferLowQualityBackup)');
                         }
-                        // FastAutoplayFirstTry signal: only flag SSAI-uniform when 4 Source types
-                        // were probed and all contaminated.
                         if (FastAutoplayFirstTry && sourceTried >= 4) {
                             streamInfo.LastBreakUsedEscapeHatch = true;
+                            streamInfo.FastAutoplayConsecutive = 0;
                         }
                     } else if (FastAutoplayFirstTry && backupPlayerType !== 'autoplay') {
-                        // Source-tier won — channel recovered, reset signal.
                         streamInfo.LastBreakUsedEscapeHatch = false;
+                        streamInfo.FastAutoplayConsecutive = 0;
                     }
                     streamInfo.LastBackupSwitch = Date.now();
                 }
@@ -1462,6 +1474,7 @@
                 streamInfo.HasLoggedAdAttributes = false;
                 streamInfo.HasLoggedUnknownSignifiers = false;
                 streamInfo.LoggedFastAutoplayThisBreak = false;
+                streamInfo.LoggedFastAutoplayReprobeThisBreak = false;
                 streamInfo.SawCSAIFastPath = false;// Clear sticky CSAI flag for next break
                 streamInfo.EscapeHatchFired = false;
                 // Auto-escalate cooldown: if 3+ reloads in last 2 min, triple the cooldown to reduce cascade pressure
