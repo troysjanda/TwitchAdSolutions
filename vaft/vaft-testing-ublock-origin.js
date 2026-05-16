@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 642;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 643;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -656,17 +656,19 @@ twitch-videoad.js text/javascript
                 const rollType = (attr['X-TV-TWITCH-AD-ROLL-TYPE'] || '').toLowerCase();
                 if (i === 0) firstRollType = rollType;
                 const adPosition = parseInt(attr['X-TV-TWITCH-AD-POD-POSITION'] || String(i), 10);
+                const stitchedAdId = (attr['ID'] || '').replace(/^"|"$/g, '');
+                const adDuration = parseInt(attr['X-TV-TWITCH-AD-DURATION'] || '0', 10) || 0;
                 const payload = {
                     stitched: true,
-                    ad_id: attr['X-TV-TWITCH-AD-ADVERTISER-ID'] || '',
+                    ad_id: stitchedAdId,
                     roll_type: rollType,
                     creative_id: attr['X-TV-TWITCH-AD-CREATIVE-ID'] || '',
                     order_id: attr['X-TV-TWITCH-AD-ORDER-ID'] || '',
                     line_item_id: attr['X-TV-TWITCH-AD-LINE-ITEM-ID'] || '',
-                    player_mute: true,
-                    player_volume: 0.0,
-                    visible: false,
-                    duration: 0,
+                    player_mute: false,
+                    player_volume: 1.0,
+                    visible: true,
+                    duration: adDuration,
                     ad_position: adPosition,
                     total_ads: podLength
                 };

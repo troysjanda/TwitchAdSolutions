@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      642.0.0
+// @version      643.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 642;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 643;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -669,17 +669,25 @@
                 const rollType = (attr['X-TV-TWITCH-AD-ROLL-TYPE'] || '').toLowerCase();
                 if (i === 0) firstRollType = rollType;
                 const adPosition = parseInt(attr['X-TV-TWITCH-AD-POD-POSITION'] || String(i), 10);
+                // Per-ad-instance identifier (DATERANGE ID's stitched-ad-<UUID>) — distinct
+                // per ad. ADVERTISER-ID is the brand and collides across same-advertiser ads.
+                const stitchedAdId = (attr['ID'] || '').replace(/^"|"$/g, '');
+                // Payload internally consistent with quartile_complete{4} + pod_complete
+                // ("watched 100% to completion"): audio-on, visible, full duration. The
+                // previous mute=true / volume=0 / visible=false / duration=0 defaults were
+                // obvious cross-validation flags.
+                const adDuration = parseInt(attr['X-TV-TWITCH-AD-DURATION'] || '0', 10) || 0;
                 const payload = {
                     stitched: true,
-                    ad_id: attr['X-TV-TWITCH-AD-ADVERTISER-ID'] || '',
+                    ad_id: stitchedAdId,
                     roll_type: rollType,
                     creative_id: attr['X-TV-TWITCH-AD-CREATIVE-ID'] || '',
                     order_id: attr['X-TV-TWITCH-AD-ORDER-ID'] || '',
                     line_item_id: attr['X-TV-TWITCH-AD-LINE-ITEM-ID'] || '',
-                    player_mute: true,
-                    player_volume: 0.0,
-                    visible: false,
-                    duration: 0,
+                    player_mute: false,
+                    player_volume: 1.0,
+                    visible: true,
+                    duration: adDuration,
                     ad_position: adPosition,
                     total_ads: podLength
                 };
