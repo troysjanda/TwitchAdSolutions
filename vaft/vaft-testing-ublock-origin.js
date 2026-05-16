@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 640;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 641;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -670,16 +670,21 @@ twitch-videoad.js text/javascript
                     ad_position: adPosition,
                     total_ads: podLength
                 };
-                const makePacket = (event, extra) => [{
+                // Batch all 6 events into one GQL POST — Twitch supports array-batched ops.
+                const makePacket = (event, extra) => ({
                     operationName: 'ClientSideAdEventHandling_RecordAdEvent',
                     variables: { input: { eventName: event, eventPayload: JSON.stringify({ ...payload, ...extra }), radToken } },
                     extensions: { persistedQuery: { version: 1, sha256Hash: '7e6c69e6eb59f8ccb97ab73686f3d8b7d85a72a0298745ccd8bfc68e4054ca5b' } }
-                }];
-                gqlRequest(makePacket('video_ad_impression')).catch(() => {});
-                for (let q = 1; q <= 4; q++) {
-                    gqlRequest(makePacket('video_ad_quartile_complete', { quartile: q })).catch(() => {});
-                }
-                gqlRequest(makePacket('video_ad_pod_complete')).catch(() => {});
+                });
+                const batch = [
+                    makePacket('video_ad_impression'),
+                    makePacket('video_ad_quartile_complete', { quartile: 1 }),
+                    makePacket('video_ad_quartile_complete', { quartile: 2 }),
+                    makePacket('video_ad_quartile_complete', { quartile: 3 }),
+                    makePacket('video_ad_quartile_complete', { quartile: 4 }),
+                    makePacket('video_ad_pod_complete'),
+                ];
+                gqlRequest(batch).catch(() => {});
                 spoofedCount++;
             }
             if (spoofedCount > 0) {
