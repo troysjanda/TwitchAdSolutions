@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 639;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 640;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -631,8 +631,8 @@ twitch-videoad.js text/javascript
     // Spoof ad completion events to Twitch's backend to clear the ad state
     function notifyAdComplete(textStr) {
         try {
-            const matches = textStr.match(/#EXT-X-DATERANGE:(ID="stitched-ad-[^\n]+)\n/);
-            if (!matches || matches.length <= 1) {
+            const matches = [...textStr.matchAll(/#EXT-X-DATERANGE:(ID="stitched-ad-[^\n]+)\n/g)];
+            if (matches.length === 0) {
                 if (!notifyAdComplete.loggedNoMatch) {
                     notifyAdComplete.loggedNoMatch = true;
                     const dateRangeLine = textStr.match(/#EXT-X-DATERANGE:[^\n]{0,200}/);
@@ -640,30 +640,36 @@ twitch-videoad.js text/javascript
                 }
                 return;
             }
-            const attr = parseAttributes(matches[1]);
-            const radToken = attr['X-TV-TWITCH-AD-RADS-TOKEN'];
-            if (!radToken) {
-                if (!notifyAdComplete.loggedNoToken) {
-                    notifyAdComplete.loggedNoToken = true;
-                    console.log('[AD DEBUG] notifyAdComplete: matched DATERANGE but no RADS token. Attributes: ' + Object.keys(attr).join(', '));
+            const podLength = matches.length;
+            let spoofedCount = 0;
+            let firstRollType = '';
+            for (let i = 0; i < podLength; i++) {
+                const attr = parseAttributes(matches[i][1]);
+                const radToken = attr['X-TV-TWITCH-AD-RADS-TOKEN'];
+                if (!radToken) {
+                    if (i === 0 && !notifyAdComplete.loggedNoToken) {
+                        notifyAdComplete.loggedNoToken = true;
+                        console.log('[AD DEBUG] notifyAdComplete: matched DATERANGE but no RADS token. Attributes: ' + Object.keys(attr).join(', '));
+                    }
+                    continue;
                 }
-                return;
-            }
-            const baseData = {
-                stitched: true,
-                ad_id: attr['X-TV-TWITCH-AD-ADVERTISER-ID'] || '',
-                roll_type: (attr['X-TV-TWITCH-AD-ROLL-TYPE'] || '').toLowerCase(),
-                creative_id: attr['X-TV-TWITCH-AD-CREATIVE-ID'] || '',
-                order_id: attr['X-TV-TWITCH-AD-ORDER-ID'] || '',
-                line_item_id: attr['X-TV-TWITCH-AD-LINE-ITEM-ID'] || '',
-                player_mute: true,
-                player_volume: 0.0,
-                visible: false,
-                duration: 0
-            };
-            const podLength = parseInt(attr['X-TV-TWITCH-AD-POD-LENGTH'] || '1', 10);
-            for (let podPosition = 0; podPosition < podLength; podPosition++) {
-                const payload = { ...baseData, ad_position: podPosition, total_ads: podLength };
+                const rollType = (attr['X-TV-TWITCH-AD-ROLL-TYPE'] || '').toLowerCase();
+                if (i === 0) firstRollType = rollType;
+                const adPosition = parseInt(attr['X-TV-TWITCH-AD-POD-POSITION'] || String(i), 10);
+                const payload = {
+                    stitched: true,
+                    ad_id: attr['X-TV-TWITCH-AD-ADVERTISER-ID'] || '',
+                    roll_type: rollType,
+                    creative_id: attr['X-TV-TWITCH-AD-CREATIVE-ID'] || '',
+                    order_id: attr['X-TV-TWITCH-AD-ORDER-ID'] || '',
+                    line_item_id: attr['X-TV-TWITCH-AD-LINE-ITEM-ID'] || '',
+                    player_mute: true,
+                    player_volume: 0.0,
+                    visible: false,
+                    duration: 0,
+                    ad_position: adPosition,
+                    total_ads: podLength
+                };
                 const makePacket = (event, extra) => [{
                     operationName: 'ClientSideAdEventHandling_RecordAdEvent',
                     variables: { input: { eventName: event, eventPayload: JSON.stringify({ ...payload, ...extra }), radToken } },
@@ -674,8 +680,11 @@ twitch-videoad.js text/javascript
                     gqlRequest(makePacket('video_ad_quartile_complete', { quartile: q })).catch(() => {});
                 }
                 gqlRequest(makePacket('video_ad_pod_complete')).catch(() => {});
+                spoofedCount++;
             }
-            console.log('[AD DEBUG] Spoofed ad completion for ' + podLength + ' ad(s) — roll: ' + baseData.roll_type);
+            if (spoofedCount > 0) {
+                console.log('[AD DEBUG] Spoofed ad completion for ' + spoofedCount + '/' + podLength + ' ad(s) — roll: ' + firstRollType);
+            }
         } catch (err) {
             console.log('[AD DEBUG] Ad completion spoof failed: ' + err.message);
         }
