@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 641;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 642;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -684,7 +684,13 @@ twitch-videoad.js text/javascript
                     makePacket('video_ad_quartile_complete', { quartile: 4 }),
                     makePacket('video_ad_pod_complete'),
                 ];
-                gqlRequest(batch).catch(() => {});
+                // Surveil GQL response status — non-200 means Twitch rejected the spoof.
+                gqlRequest(batch).then(response => {
+                    if (response && response.status !== 200 && !notifyAdComplete.loggedBadStatus) {
+                        notifyAdComplete.loggedBadStatus = true;
+                        console.log('[AD DEBUG] notifyAdComplete: GQL response status ' + response.status + ' — spoof may be rejected/rate-limited');
+                    }
+                }).catch(() => {});
                 spoofedCount++;
             }
             if (spoofedCount > 0) {
