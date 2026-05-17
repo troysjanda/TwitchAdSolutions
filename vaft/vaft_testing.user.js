@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      644.0.0
+// @version      645.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 644;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 645;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -703,14 +703,19 @@
                     variables: { input: { eventName: event, eventPayload: JSON.stringify({ ...payload, ...extra }), radToken } },
                     extensions: { persistedQuery: { version: 1, sha256Hash: '7e6c69e6eb59f8ccb97ab73686f3d8b7d85a72a0298745ccd8bfc68e4054ca5b' } }
                 });
+                if (spoofedSet && stitchedAdId) spoofedSet.add(stitchedAdId);
                 const batch = [
                     makePacket('video_ad_impression'),
                     makePacket('video_ad_quartile_complete', { quartile: 1 }),
                     makePacket('video_ad_quartile_complete', { quartile: 2 }),
                     makePacket('video_ad_quartile_complete', { quartile: 3 }),
                     makePacket('video_ad_quartile_complete', { quartile: 4 }),
-                    makePacket('video_ad_pod_complete'),
                 ];
+                // pod_complete once per pod (not per ad) — attached to the ad that
+                // completes the true pod size. Defensive fallback (no dedup set): per-ad.
+                if (!spoofedSet || spoofedSet.size === podLength) {
+                    batch.push(makePacket('video_ad_pod_complete'));
+                }
                 // Surveil GQL response status — non-200 means Twitch rejected the spoof.
                 gqlRequest(batch).then(response => {
                     if (response && response.status !== 200 && !notifyAdComplete.loggedBadStatus) {
@@ -718,7 +723,6 @@
                         console.log('[AD DEBUG] notifyAdComplete: GQL response status ' + response.status + ' — spoof may be rejected/rate-limited');
                     }
                 }).catch(() => {});
-                if (spoofedSet && stitchedAdId) spoofedSet.add(stitchedAdId);
                 newSpoofed++;
             }
             if (newSpoofed > 0) {
