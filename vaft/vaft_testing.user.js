@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      646.0.0
+// @version      647.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 646;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 647;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -658,10 +658,22 @@
             const spoofedSet = (streamInfo && streamInfo.SpoofedAdIds) || null;
             const podLenMatch = textStr.match(/X-TV-TWITCH-AD-POD-LENGTH="(\d+)"/);
             const podLength = podLenMatch ? parseInt(podLenMatch[1], 10) : matches.length;
+            // Hot-path early-out: spoof runs every ad-laden poll; once the dedup set
+            // covers the pod, every remaining poll is pure waste — bail before the loop.
+            if (spoofedSet && spoofedSet.size >= podLength) {
+                return;
+            }
             let newSpoofed = 0;
             let firstRollType = '';
             let podCompleteSent = false;
             for (let i = 0; i < matches.length; i++) {
+                // Cheap ID pre-extract — dedup-check before full parseAttributes().
+                const idMatch = matches[i][1].match(/^ID="([^"]+)"/);
+                const stitchedAdId = idMatch ? idMatch[1] : '';
+                // Multi-poll dedup: skip ads already spoofed earlier this break.
+                if (spoofedSet && stitchedAdId && spoofedSet.has(stitchedAdId)) {
+                    continue;
+                }
                 const attr = parseAttributes(matches[i][1]);
                 const radToken = attr['X-TV-TWITCH-AD-RADS-TOKEN'];
                 if (!radToken) {
@@ -669,13 +681,6 @@
                         notifyAdComplete.loggedNoToken = true;
                         console.log('[AD DEBUG] notifyAdComplete: matched DATERANGE but no RADS token. Attributes: ' + Object.keys(attr).join(', '));
                     }
-                    continue;
-                }
-                // Per-ad-instance identifier (DATERANGE ID's stitched-ad-<UUID>) — distinct
-                // per ad. ADVERTISER-ID is the brand and collides across same-advertiser ads.
-                const stitchedAdId = (attr['ID'] || '').replace(/^"|"$/g, '');
-                // Multi-poll dedup: skip ads already spoofed earlier this break.
-                if (spoofedSet && stitchedAdId && spoofedSet.has(stitchedAdId)) {
                     continue;
                 }
                 const rollType = (attr['X-TV-TWITCH-AD-ROLL-TYPE'] || '').toLowerCase();

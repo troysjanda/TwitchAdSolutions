@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 646;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 647;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -645,10 +645,21 @@ twitch-videoad.js text/javascript
             const spoofedSet = (streamInfo && streamInfo.SpoofedAdIds) || null;
             const podLenMatch = textStr.match(/X-TV-TWITCH-AD-POD-LENGTH="(\d+)"/);
             const podLength = podLenMatch ? parseInt(podLenMatch[1], 10) : matches.length;
+            // Hot-path early-out: once the dedup set covers the pod, every remaining
+            // poll is pure waste — bail before the per-match loop.
+            if (spoofedSet && spoofedSet.size >= podLength) {
+                return;
+            }
             let newSpoofed = 0;
             let firstRollType = '';
             let podCompleteSent = false;
             for (let i = 0; i < matches.length; i++) {
+                // Cheap ID pre-extract — dedup-check before full parseAttributes().
+                const idMatch = matches[i][1].match(/^ID="([^"]+)"/);
+                const stitchedAdId = idMatch ? idMatch[1] : '';
+                if (spoofedSet && stitchedAdId && spoofedSet.has(stitchedAdId)) {
+                    continue;
+                }
                 const attr = parseAttributes(matches[i][1]);
                 const radToken = attr['X-TV-TWITCH-AD-RADS-TOKEN'];
                 if (!radToken) {
@@ -656,10 +667,6 @@ twitch-videoad.js text/javascript
                         notifyAdComplete.loggedNoToken = true;
                         console.log('[AD DEBUG] notifyAdComplete: matched DATERANGE but no RADS token. Attributes: ' + Object.keys(attr).join(', '));
                     }
-                    continue;
-                }
-                const stitchedAdId = (attr['ID'] || '').replace(/^"|"$/g, '');
-                if (spoofedSet && stitchedAdId && spoofedSet.has(stitchedAdId)) {
                     continue;
                 }
                 const rollType = (attr['X-TV-TWITCH-AD-ROLL-TYPE'] || '').toLowerCase();
