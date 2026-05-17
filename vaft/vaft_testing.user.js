@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      645.0.0
+// @version      646.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 645;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 646;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -660,6 +660,7 @@
             const podLength = podLenMatch ? parseInt(podLenMatch[1], 10) : matches.length;
             let newSpoofed = 0;
             let firstRollType = '';
+            let podCompleteSent = false;
             for (let i = 0; i < matches.length; i++) {
                 const attr = parseAttributes(matches[i][1]);
                 const radToken = attr['X-TV-TWITCH-AD-RADS-TOKEN'];
@@ -715,6 +716,7 @@
                 // completes the true pod size. Defensive fallback (no dedup set): per-ad.
                 if (!spoofedSet || spoofedSet.size === podLength) {
                     batch.push(makePacket('video_ad_pod_complete'));
+                    podCompleteSent = true;
                 }
                 // Surveil GQL response status — non-200 means Twitch rejected the spoof.
                 gqlRequest(batch).then(response => {
@@ -727,7 +729,8 @@
             }
             if (newSpoofed > 0) {
                 const total = spoofedSet ? spoofedSet.size : newSpoofed;
-                console.log('[AD DEBUG] Spoofed ad completion for ' + newSpoofed + ' new ad(s) (' + total + '/' + podLength + ' pod) — roll: ' + firstRollType);
+                const src = (streamInfo && streamInfo.ActiveBackupPlayerType) || 'primary';
+                console.log('[AD DEBUG] Spoofed ad completion for ' + newSpoofed + ' new ad(s) (' + total + '/' + podLength + ' pod) — roll: ' + firstRollType + ', src: ' + src + ', pod-complete: ' + (podCompleteSent ? 'yes' : 'no'));
             }
         } catch (err) {
             console.log('[AD DEBUG] Ad completion spoof failed: ' + err.message);
