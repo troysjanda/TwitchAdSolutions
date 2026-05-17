@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      643.0.0
+// @version      644.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 643;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 644;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -144,6 +144,7 @@
             Urls: [],// xxx.m3u8 -> { Resolution: "284x160", FrameRate: 30.0 }
             ResolutionList: [],
             RequestedAds: new Set(),
+            SpoofedAdIds: new Set(),// notifyAdComplete multi-poll dedup — stitched-ad IDs spoofed this break. Cleared at break end.
             // Modified m3u8 state
             ModifiedM3U8: null,
             IsUsingModifiedM3U8: false,
@@ -640,10 +641,11 @@
         return AdSignifiers.some((s) => s && textStr.includes(s));
     }
     // Spoof ad completion events to Twitch's backend to clear the ad state
-    function notifyAdComplete(textStr) {
+    function notifyAdComplete(textStr, streamInfo) {
         try {
-            // Each ad in a pod has its own DATERANGE line with own RADS-token + metadata.
-            // Iterate per-ad — submitting ad #1's token for positions 2..N could be flagged.
+            // Twitch reveals each ad's DATERANGE only as that ad starts, so multi-ad
+            // pods surface one ad per poll. Called every ad-laden poll; SpoofedAdIds
+            // dedups across polls so each ad is spoofed once (full N/N pod coverage).
             const matches = [...textStr.matchAll(/#EXT-X-DATERANGE:(ID="stitched-ad-[^\n]+)\n/g)];
             if (matches.length === 0) {
                 if (!notifyAdComplete.loggedNoMatch) {
@@ -653,10 +655,12 @@
                 }
                 return;
             }
-            const podLength = matches.length;
-            let spoofedCount = 0;
+            const spoofedSet = (streamInfo && streamInfo.SpoofedAdIds) || null;
+            const podLenMatch = textStr.match(/X-TV-TWITCH-AD-POD-LENGTH="(\d+)"/);
+            const podLength = podLenMatch ? parseInt(podLenMatch[1], 10) : matches.length;
+            let newSpoofed = 0;
             let firstRollType = '';
-            for (let i = 0; i < podLength; i++) {
+            for (let i = 0; i < matches.length; i++) {
                 const attr = parseAttributes(matches[i][1]);
                 const radToken = attr['X-TV-TWITCH-AD-RADS-TOKEN'];
                 if (!radToken) {
@@ -666,16 +670,18 @@
                     }
                     continue;
                 }
-                const rollType = (attr['X-TV-TWITCH-AD-ROLL-TYPE'] || '').toLowerCase();
-                if (i === 0) firstRollType = rollType;
-                const adPosition = parseInt(attr['X-TV-TWITCH-AD-POD-POSITION'] || String(i), 10);
                 // Per-ad-instance identifier (DATERANGE ID's stitched-ad-<UUID>) — distinct
                 // per ad. ADVERTISER-ID is the brand and collides across same-advertiser ads.
                 const stitchedAdId = (attr['ID'] || '').replace(/^"|"$/g, '');
+                // Multi-poll dedup: skip ads already spoofed earlier this break.
+                if (spoofedSet && stitchedAdId && spoofedSet.has(stitchedAdId)) {
+                    continue;
+                }
+                const rollType = (attr['X-TV-TWITCH-AD-ROLL-TYPE'] || '').toLowerCase();
+                if (!firstRollType) firstRollType = rollType;
+                const adPosition = parseInt(attr['X-TV-TWITCH-AD-POD-POSITION'] || String(i), 10);
                 // Payload internally consistent with quartile_complete{4} + pod_complete
-                // ("watched 100% to completion"): audio-on, visible, full duration. The
-                // previous mute=true / volume=0 / visible=false / duration=0 defaults were
-                // obvious cross-validation flags.
+                // ("watched 100% to completion"): audio-on, visible, full duration.
                 const adDuration = parseInt(attr['X-TV-TWITCH-AD-DURATION'] || '0', 10) || 0;
                 const payload = {
                     stitched: true,
@@ -712,10 +718,12 @@
                         console.log('[AD DEBUG] notifyAdComplete: GQL response status ' + response.status + ' — spoof may be rejected/rate-limited');
                     }
                 }).catch(() => {});
-                spoofedCount++;
+                if (spoofedSet && stitchedAdId) spoofedSet.add(stitchedAdId);
+                newSpoofed++;
             }
-            if (spoofedCount > 0) {
-                console.log('[AD DEBUG] Spoofed ad completion for ' + spoofedCount + '/' + podLength + ' ad(s) — roll: ' + firstRollType);
+            if (newSpoofed > 0) {
+                const total = spoofedSet ? spoofedSet.size : newSpoofed;
+                console.log('[AD DEBUG] Spoofed ad completion for ' + newSpoofed + ' new ad(s) (' + total + '/' + podLength + ' pod) — roll: ' + firstRollType);
             }
         } catch (err) {
             console.log('[AD DEBUG] Ad completion spoof failed: ' + err.message);
@@ -1007,15 +1015,17 @@
                 streamInfo.FreezeStartedAt = 0;
                 streamInfo.CycleRescuedThisBreak = false;
                 console.log('[AD DEBUG] Ad detected — type: ' + (streamInfo.IsMidroll ? 'midroll' : 'preroll') + ', channel: ' + streamInfo.ChannelName + ', pod: ' + podLength + ' ad(s) (~' + (podLength * 30) + 's expected), signifiers: ' + getMatchedAdSignifiers(textStr).join(', '));
-                if (!DisableAdSpoofing) {
-                    notifyAdComplete(textStr);
-                }
                 postMessage({
                     key: 'UpdateAdBlockBanner',
                     isMidroll: streamInfo.IsMidroll,
                     hasAds: streamInfo.IsShowingAd,
                     isStrippingAdSegments: false
                 });
+            }
+            // Spoof ad-completion every ad-laden poll. Multi-ad pods surface one ad
+            // per poll; notifyAdComplete dedups via SpoofedAdIds (full N/N coverage).
+            if (!DisableAdSpoofing) {
+                notifyAdComplete(textStr, streamInfo);
             }
             if (!streamInfo.IsMidroll) {
                 const lines = textStr.split(/\r?\n/);
@@ -1482,6 +1492,7 @@
                 streamInfo.NumStrippedAdSegments = 0;
                 streamInfo.ActiveBackupPlayerType = null;
                 streamInfo.RequestedAds?.clear?.();
+                streamInfo.SpoofedAdIds?.clear?.();// New break = fresh ad-spoof dedup set
                 streamInfo.FailedBackupPlayerTypes?.clear?.();
                 // Clear pin if the pinned type was contaminated this break — avoids wasted
                 // first-try fetch on next break. Field-observed on pge4: PinnedBackupPlayerType

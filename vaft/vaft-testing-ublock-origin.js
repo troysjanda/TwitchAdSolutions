@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 643;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 644;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -133,6 +133,7 @@ twitch-videoad.js text/javascript
             Urls: [],// xxx.m3u8 -> { Resolution: "284x160", FrameRate: 30.0 }
             ResolutionList: [],
             RequestedAds: new Set(),
+            SpoofedAdIds: new Set(),// notifyAdComplete multi-poll dedup — cleared at break end.
             // Modified m3u8 state
             ModifiedM3U8: null,
             IsUsingModifiedM3U8: false,
@@ -629,8 +630,9 @@ twitch-videoad.js text/javascript
         return AdSignifiers.some((s) => s && textStr.includes(s));
     }
     // Spoof ad completion events to Twitch's backend to clear the ad state
-    function notifyAdComplete(textStr) {
+    function notifyAdComplete(textStr, streamInfo) {
         try {
+            // Multi-ad pods surface one ad per poll; SpoofedAdIds dedups across polls.
             const matches = [...textStr.matchAll(/#EXT-X-DATERANGE:(ID="stitched-ad-[^\n]+)\n/g)];
             if (matches.length === 0) {
                 if (!notifyAdComplete.loggedNoMatch) {
@@ -640,10 +642,12 @@ twitch-videoad.js text/javascript
                 }
                 return;
             }
-            const podLength = matches.length;
-            let spoofedCount = 0;
+            const spoofedSet = (streamInfo && streamInfo.SpoofedAdIds) || null;
+            const podLenMatch = textStr.match(/X-TV-TWITCH-AD-POD-LENGTH="(\d+)"/);
+            const podLength = podLenMatch ? parseInt(podLenMatch[1], 10) : matches.length;
+            let newSpoofed = 0;
             let firstRollType = '';
-            for (let i = 0; i < podLength; i++) {
+            for (let i = 0; i < matches.length; i++) {
                 const attr = parseAttributes(matches[i][1]);
                 const radToken = attr['X-TV-TWITCH-AD-RADS-TOKEN'];
                 if (!radToken) {
@@ -653,10 +657,13 @@ twitch-videoad.js text/javascript
                     }
                     continue;
                 }
-                const rollType = (attr['X-TV-TWITCH-AD-ROLL-TYPE'] || '').toLowerCase();
-                if (i === 0) firstRollType = rollType;
-                const adPosition = parseInt(attr['X-TV-TWITCH-AD-POD-POSITION'] || String(i), 10);
                 const stitchedAdId = (attr['ID'] || '').replace(/^"|"$/g, '');
+                if (spoofedSet && stitchedAdId && spoofedSet.has(stitchedAdId)) {
+                    continue;
+                }
+                const rollType = (attr['X-TV-TWITCH-AD-ROLL-TYPE'] || '').toLowerCase();
+                if (!firstRollType) firstRollType = rollType;
+                const adPosition = parseInt(attr['X-TV-TWITCH-AD-POD-POSITION'] || String(i), 10);
                 const adDuration = parseInt(attr['X-TV-TWITCH-AD-DURATION'] || '0', 10) || 0;
                 const payload = {
                     stitched: true,
@@ -693,10 +700,12 @@ twitch-videoad.js text/javascript
                         console.log('[AD DEBUG] notifyAdComplete: GQL response status ' + response.status + ' — spoof may be rejected/rate-limited');
                     }
                 }).catch(() => {});
-                spoofedCount++;
+                if (spoofedSet && stitchedAdId) spoofedSet.add(stitchedAdId);
+                newSpoofed++;
             }
-            if (spoofedCount > 0) {
-                console.log('[AD DEBUG] Spoofed ad completion for ' + spoofedCount + '/' + podLength + ' ad(s) — roll: ' + firstRollType);
+            if (newSpoofed > 0) {
+                const total = spoofedSet ? spoofedSet.size : newSpoofed;
+                console.log('[AD DEBUG] Spoofed ad completion for ' + newSpoofed + ' new ad(s) (' + total + '/' + podLength + ' pod) — roll: ' + firstRollType);
             }
         } catch (err) {
             console.log('[AD DEBUG] Ad completion spoof failed: ' + err.message);
@@ -986,15 +995,16 @@ twitch-videoad.js text/javascript
                 streamInfo.FreezeStartedAt = 0;
                 streamInfo.CycleRescuedThisBreak = false;
                 console.log('[AD DEBUG] Ad detected — type: ' + (streamInfo.IsMidroll ? 'midroll' : 'preroll') + ', channel: ' + streamInfo.ChannelName + ', pod: ' + podLength + ' ad(s) (~' + (podLength * 30) + 's expected), signifiers: ' + getMatchedAdSignifiers(textStr).join(', '));
-                if (!DisableAdSpoofing) {
-                    notifyAdComplete(textStr);
-                }
                 postMessage({
                     key: 'UpdateAdBlockBanner',
                     isMidroll: streamInfo.IsMidroll,
                     hasAds: streamInfo.IsShowingAd,
                     isStrippingAdSegments: false
                 });
+            }
+            // Spoof every ad-laden poll; SpoofedAdIds dedups multi-ad pods.
+            if (!DisableAdSpoofing) {
+                notifyAdComplete(textStr, streamInfo);
             }
             if (!streamInfo.IsMidroll) {
                 const lines = textStr.split(/\r?\n/);
@@ -1458,6 +1468,7 @@ twitch-videoad.js text/javascript
                 streamInfo.NumStrippedAdSegments = 0;
                 streamInfo.ActiveBackupPlayerType = null;
                 streamInfo.RequestedAds?.clear?.();
+                streamInfo.SpoofedAdIds?.clear?.();// New break = fresh ad-spoof dedup set
                 streamInfo.FailedBackupPlayerTypes?.clear?.();
                 // Clear pin if the pinned type was contaminated this break — avoids wasted
                 // first-try fetch on next break. Field-observed on pge4: PinnedBackupPlayerType
