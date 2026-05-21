@@ -98,7 +98,7 @@
         scope.DisableReloadCap = false;// If true, buffer monitor reloads unlimited times (pre-v47 behavior, risk of cascade)
         scope.DriftCorrectionRate = 1.1;// Playback rate for catching up to live edge after reload (0 = disable drift correction)
         scope.EarlyReloadPollThreshold = 3;// Number of consecutive all-stripped polls before triggering early reload (each poll ~2s, so 3 = ~6s, 5 = ~10s, 10 = ~20s; 0 = disable)
-        scope.DisableAdSpoofing = false;// If true, skip the ad-impression spoofing GQL beacons (notifyAdComplete) — for A/B testing whether spoofing affects ad break duration
+        scope.DisableAdSpoofing = true;// Default OFF: spoof beacons' always-100%-watched + audible + visible pattern may itself fingerprint as anomalous and trigger detection escalation (CSAI on more tiers). Opt-in by setting twitchAdSolutions_disableAdSpoofing=false to fire the GQL ad-tracking beacons (notifyAdComplete). Was default ON through v68.2.0.
         scope.PinBackupPlayerType = true;// Remember which backup player type worked and try it first on next ad break
         scope.PlayerReloadMinimalRequestsTime = 1500;
         scope.PlayerReloadMinimalRequestsPlayerIndex = 2;//autoplay
