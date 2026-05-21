@@ -735,7 +735,8 @@ twitch-videoad.js text/javascript
             if (newSpoofed > 0) {
                 const total = spoofedSet ? spoofedSet.size : newSpoofed;
                 const src = (streamInfo && streamInfo.ActiveBackupPlayerType) || 'primary';
-                console.log('[AD DEBUG] Spoofed ad completion for ' + newSpoofed + ' new ad(s) (' + total + '/' + podLength + ' pod) — roll: ' + firstRollType + ', src: ' + src + ', pod-complete: ' + (podCompleteSent ? 'yes' : 'no'));
+                notifyAdComplete.sessionAdsSpoofed = (notifyAdComplete.sessionAdsSpoofed || 0) + newSpoofed;
+                console.log('[AD DEBUG] Spoofed ad completion for ' + newSpoofed + ' new ad(s) (' + total + '/' + podLength + ' pod) — roll: ' + firstRollType + ', src: ' + src + ', pod-complete: ' + (podCompleteSent ? 'yes' : 'no') + ' [session: ' + notifyAdComplete.sessionAdsSpoofed + ' ads spoofed]');
             }
         } catch (err) {
             console.log('[AD DEBUG] Ad completion spoof failed: ' + err.message);
@@ -2472,6 +2473,10 @@ twitch-videoad.js text/javascript
         const lsDisableAdSpoofing = localStorage.getItem('twitchAdSolutions_disableAdSpoofing');
         if (lsDisableAdSpoofing !== null) {
             DisableAdSpoofing = lsDisableAdSpoofing === 'true';
+        }
+        if (!DisableAdSpoofing) {
+            const spoofSrc = (lsDisableAdSpoofing === 'false') ? 'localStorage opt-in' : 'modified default';
+            console.log('[AD DEBUG] AdSpoofing ENABLED (' + spoofSrc + ') — firing GQL ad-tracking beacons on every ad-laden poll. Default is OFF as of v68.3.0; opt-in mode for A/B testing. Watch session counters on "Spoofed ad completion" lines to compare with a spoof-off session on the same channel.');
         }
         const lsPlayerType = localStorage.getItem('twitchAdSolutions_playerType');
         if (lsPlayerType !== null) {
