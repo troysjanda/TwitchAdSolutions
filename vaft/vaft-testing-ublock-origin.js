@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 653;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 654;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -2106,6 +2106,15 @@ twitch-videoad.js text/javascript
             return;
         }
         const wasPaused = player.isPaused() || player.core?.paused;
+        // iOS/iPadOS anti-churn (restores the pixeltris-era "bail if paused" reload guard, scoped to
+        // Apple touch): a reload re-instantiates the media element, which needs a user gesture to resume
+        // on iOS — re-firing it while the player is already paused just re-creates the black-screen +
+        // play-icon under the user's finger ("unable to hit play"). Leave the paused element standing so
+        // a single tap resumes it. Opt-out with the rest of the iOS reload workaround: twitchAdSolutions_iosSoftReload=false.
+        if (isReload && iosSoftReload && wasPaused) {
+            console.log('[AD DEBUG] iOS/iPadOS: skipping reload — player already paused (anti-churn; tap to resume)');
+            return;
+        }
         // Only block pause/play toggle if already paused — still allow reloads
         if (isPausePlay && wasPaused) {
             // User deliberately paused — respect their intent, don't auto-resume
