@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      654.0.0
+// @version      655.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 654;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 655;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -684,6 +684,13 @@
             let firstRollType = '';
             let podCompleteSent = false;
             for (let i = 0; i < matches.length; i++) {
+                // Cap at the declared pod length (mirrors TTV-AB v9.4.1): Twitch occasionally
+                // surfaces more unique stitched-ad DATERANGEs in one poll than
+                // X-TV-TWITCH-AD-POD-LENGTH declares. Spoofing past the pod sends beacons for
+                // more ads than the pod claims — an internally-inconsistent pattern — and logs
+                // impossible totals like "5/2 pod". The pre-loop early-out only catches this
+                // across polls, not within a single poll's match list.
+                if (spoofedSet && spoofedSet.size >= podLength) break;
                 // Cheap ID pre-extract — dedup-check before full parseAttributes().
                 const idMatch = matches[i][1].match(/^ID="([^"]+)"/);
                 const stitchedAdId = idMatch ? idMatch[1] : '';
@@ -2373,8 +2380,11 @@
                 ...fetchRequest.options,
                 signal: controller.signal
             });
-            clearTimeout(timeoutId);
             const responseBody = await response.text();
+            // clearTimeout AFTER the body read (mirrors TTV-AB v9.6.1): the abort must also
+            // cover a response that hangs mid-body, not just slow headers. On abort, text()
+            // rejects with AbortError and the catch below clears the timer (no-op if fired).
+            clearTimeout(timeoutId);
             const responseObject = {
                 id: fetchRequest.id,
                 status: response.status,
