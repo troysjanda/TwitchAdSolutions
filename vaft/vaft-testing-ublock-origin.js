@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 655;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 656;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -662,9 +662,15 @@ twitch-videoad.js text/javascript
             const spoofedSet = (streamInfo && streamInfo.SpoofedAdIds) || null;
             const podLenMatch = textStr.match(/X-TV-TWITCH-AD-POD-LENGTH="(\d+)"/);
             const podLength = podLenMatch ? parseInt(podLenMatch[1], 10) : matches.length;
+            // Whether Twitch declared the pod size. When absent, podLength is just THIS poll's
+            // match count — so any size>=podLength check would bail after the first ad
+            // (under-spoofing later ads) and mis-fire pod_complete. Gate every size-vs-podLength
+            // check on this (mirrors GosuDRM/TTV-AB v9.6.4 + v9.7.3): unknown pod length → never
+            // early-out, never fabricate pod_complete.
+            const hasExplicitPodLength = !!podLenMatch;
             // Hot-path early-out: once the dedup set covers the pod, every remaining
             // poll is pure waste — bail before the per-match loop.
-            if (spoofedSet && spoofedSet.size >= podLength) {
+            if (hasExplicitPodLength && spoofedSet && spoofedSet.size >= podLength) {
                 return;
             }
             let newSpoofed = 0;
@@ -677,7 +683,7 @@ twitch-videoad.js text/javascript
                 // more ads than the pod claims — an internally-inconsistent pattern — and logs
                 // impossible totals like "5/2 pod". The pre-loop early-out only catches this
                 // across polls, not within a single poll's match list.
-                if (spoofedSet && spoofedSet.size >= podLength) break;
+                if (hasExplicitPodLength && spoofedSet && spoofedSet.size >= podLength) break;
                 // Cheap ID pre-extract — dedup-check before full parseAttributes().
                 const idMatch = matches[i][1].match(/^ID="([^"]+)"/);
                 const stitchedAdId = idMatch ? idMatch[1] : '';
@@ -726,7 +732,8 @@ twitch-videoad.js text/javascript
                     makePacket('video_ad_quartile_complete', { quartile: 4 }),
                 ];
                 // pod_complete once per pod (not per ad). Defensive fallback: per-ad.
-                if (!spoofedSet || spoofedSet.size === podLength) {
+                // Unknown pod length → never fire (podLength is only this poll's count), per TTV-AB v9.7.3.
+                if (!spoofedSet || (hasExplicitPodLength && spoofedSet.size === podLength)) {
                     batch.push(makePacket('video_ad_pod_complete'));
                     podCompleteSent = true;
                 }
