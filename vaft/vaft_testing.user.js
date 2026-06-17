@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      659.0.0
+// @version      660.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 659;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 660;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -1937,23 +1937,32 @@
                 playerForMonitoringBuffering = null;
             }
         }
-        // In-ad buffer-gap seek (mirrors TTV-AB #33 / v9.7.5): the buffer-stall recovery above is
-        // gated !inAdBreak, and the strip-recovery below only fires while actively stripping — so on a
-        // CSAI break the autoplay backup can develop a buffered hole ahead of the playhead with NO
-        // recovery, freezing the player for the rest of the break (loading circle). When the playhead is
-        // stuck at the end of its buffered range with a real (>2s) gap before the next range, seek across
-        // it. Seek-only + stuck-at-gap-only, so it can't fight the ad-block flow.
-        if (playerBufferState.inAdBreak && !isActivelyStrippingAds && playerForMonitoringBuffering) {
+        // In-ad frozen-buffer-gap seek (mirrors GosuDRM/TTV-AB _trySeekPastFrozenBufferGap, #33 / v9.7.5):
+        // the main buffer-stall recovery is gated !inAdBreak and the strip-recovery only fires while
+        // stripping, so on a CSAI break a frozen-at-gap autoplay backup has no recovery (loading circle).
+        // Confirm the playhead is genuinely frozen — no advance for 3 monitor ticks AND readyState < 3
+        // (starved) — then seek past the buffered hole. Live-only + confirmed-frozen, so it can't skip
+        // VOD content or fire while the player is still progressing.
+        if (playerBufferState.inAdBreak && !isActivelyStrippingAds && playerForMonitoringBuffering
+            && playerForMonitoringBuffering.state?.props?.content?.type === 'live') {
             try {
                 const v = playerForMonitoringBuffering.player?.getHTMLVideoElement?.();
-                if (v && !v.paused && !v.ended && v.buffered && v.buffered.length >= 2) {
-                    const ct = v.currentTime;
-                    for (let i = 0; i < v.buffered.length - 1; i++) {
-                        const curEnd = v.buffered.end(i);
-                        const nextStart = v.buffered.start(i + 1);
-                        if (ct >= v.buffered.start(i) - 0.5 && ct <= curEnd + 0.5 && (nextStart - curEnd) > 2 && nextStart > ct) {
-                            console.log('[AD DEBUG] In-ad buffer-gap seek — playhead ' + ct.toFixed(1) + 's stuck at buffered-range end ' + curEnd.toFixed(1) + 's; seeking across ' + (nextStart - curEnd).toFixed(1) + 's gap to ' + nextStart.toFixed(1) + 's (mirrors TTV-AB #33)');
-                            v.currentTime = nextStart + 0.1;
+                const ct = v ? v.currentTime : 0;
+                const last = playerBufferState.gapJumpLastPosition;
+                if (!v || last === undefined || last < 0 || ct > last + 0.2 || ct < last) {
+                    playerBufferState.gapJumpStuckTicks = 0;
+                } else {
+                    playerBufferState.gapJumpStuckTicks = (playerBufferState.gapJumpStuckTicks || 0) + 1;
+                }
+                playerBufferState.gapJumpLastPosition = ct;
+                if (v && !v.paused && !v.ended && (playerBufferState.gapJumpStuckTicks || 0) >= 3 && (v.readyState ?? 4) < 3 && v.buffered && v.buffered.length > 1) {
+                    for (let i = 0; i < v.buffered.length; i++) {
+                        const gapStart = v.buffered.start(i);
+                        if (gapStart > ct + 0.25) {
+                            console.log('[AD DEBUG] In-ad buffer-gap seek — playhead ' + ct.toFixed(1) + 's frozen ' + playerBufferState.gapJumpStuckTicks + ' ticks (readyState ' + v.readyState + '); seeking ' + (gapStart - ct).toFixed(1) + 's past gap to ' + gapStart.toFixed(1) + 's (mirrors TTV-AB #33)');
+                            v.currentTime = gapStart + 0.05;
+                            playerBufferState.gapJumpStuckTicks = 0;
+                            playerBufferState.gapJumpLastPosition = -1;
                             break;
                         }
                     }
