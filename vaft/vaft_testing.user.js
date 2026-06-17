@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      660.0.0
+// @version      661.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 660;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 661;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -91,6 +91,7 @@
         scope.FastAutoplayFirstTry = true;// Prepend autoplay (360p) to iteration when prior break exhausted Source-tier (saves ~1.5-2s probe-loop). Auto-resets on Source-tier recovery. Default on as of v638 (every observed channel is CSAI-only-but-marked). Opt-out: twitchAdSolutions_fastAutoplayFirstTry=false.
         scope.BackupSwapFirst = true;// On ad detect, immediately swap to a backup player-type m3u8 (TTV-AB-style). Avoids MediaSource mixing from strip activity — fewer loading circles in field. Cost: extra fetches on every ad break. Default on; set twitchAdSolutions_backupSwapFirst=false to disable.
         scope.RecoverFromSilentMute = true;// Issue #200: on hard reload, recover from Twitch's silent re-mute pattern when vaft has unmuted earlier this session. Default on; set twitchAdSolutions_recoverFromSilentMute=false to disable.
+        scope.DisableInAdGapSeek = false;// In-ad frozen-buffer-gap seek (mirrors TTV-AB #33). Default on. Set twitchAdSolutions_disableInAdGapSeek=true to turn it OFF (for A/B isolation of mid-break pause/loading-circle reports).
         scope.SkipPlayerReloadOnHevc = false;// If true this will skip player reload on streams which have 2k/4k quality (if you enable this and you use the 2k/4k quality setting you'll get error #4000 / #3000 / spinning wheel on chrome based browsers)
         scope.AlwaysReloadPlayerOnAd = false;// Always pause/play when entering/leaving ads
         scope.ReloadPlayerAfterAd = true;// After the ad finishes do a player reload instead of pause/play
@@ -1943,7 +1944,7 @@
         // Confirm the playhead is genuinely frozen — no advance for 3 monitor ticks AND readyState < 3
         // (starved) — then seek past the buffered hole. Live-only + confirmed-frozen, so it can't skip
         // VOD content or fire while the player is still progressing.
-        if (playerBufferState.inAdBreak && !isActivelyStrippingAds && playerForMonitoringBuffering
+        if (playerBufferState.inAdBreak && !isActivelyStrippingAds && !DisableInAdGapSeek && playerForMonitoringBuffering
             && playerForMonitoringBuffering.state?.props?.content?.type === 'live') {
             try {
                 const v = playerForMonitoringBuffering.player?.getHTMLVideoElement?.();
@@ -2642,6 +2643,11 @@
         if (lsRecoverFromSilentMute === 'false') {
             RecoverFromSilentMute = false;
             console.log('[AD DEBUG] RecoverFromSilentMute disabled via localStorage — hard-reload backstop respects already-muted state');
+        }
+        const lsDisableInAdGapSeek = localStorage.getItem('twitchAdSolutions_disableInAdGapSeek');
+        if (lsDisableInAdGapSeek === 'true') {
+            DisableInAdGapSeek = true;
+            console.log('[AD DEBUG] In-ad buffer-gap seek DISABLED via localStorage — a mid-break frozen-at-gap backup will not be seeked (A/B isolation)');
         }
         const lsHideAdOverlay = localStorage.getItem('twitchAdSolutions_hideAdOverlay');
         if (lsHideAdOverlay === 'true') {
