@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      658.0.0
+// @version      659.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 658;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 659;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -1936,6 +1936,29 @@
                 console.error('error when monitoring player for buffering: ' + err);
                 playerForMonitoringBuffering = null;
             }
+        }
+        // In-ad buffer-gap seek (mirrors TTV-AB #33 / v9.7.5): the buffer-stall recovery above is
+        // gated !inAdBreak, and the strip-recovery below only fires while actively stripping — so on a
+        // CSAI break the autoplay backup can develop a buffered hole ahead of the playhead with NO
+        // recovery, freezing the player for the rest of the break (loading circle). When the playhead is
+        // stuck at the end of its buffered range with a real (>2s) gap before the next range, seek across
+        // it. Seek-only + stuck-at-gap-only, so it can't fight the ad-block flow.
+        if (playerBufferState.inAdBreak && !isActivelyStrippingAds && playerForMonitoringBuffering) {
+            try {
+                const v = playerForMonitoringBuffering.player?.getHTMLVideoElement?.();
+                if (v && !v.paused && !v.ended && v.buffered && v.buffered.length >= 2) {
+                    const ct = v.currentTime;
+                    for (let i = 0; i < v.buffered.length - 1; i++) {
+                        const curEnd = v.buffered.end(i);
+                        const nextStart = v.buffered.start(i + 1);
+                        if (ct >= v.buffered.start(i) - 0.5 && ct <= curEnd + 0.5 && (nextStart - curEnd) > 2 && nextStart > ct) {
+                            console.log('[AD DEBUG] In-ad buffer-gap seek — playhead ' + ct.toFixed(1) + 's stuck at buffered-range end ' + curEnd.toFixed(1) + 's; seeking across ' + (nextStart - curEnd).toFixed(1) + 's gap to ' + nextStart.toFixed(1) + 's (mirrors TTV-AB #33)');
+                            v.currentTime = nextStart + 0.1;
+                            break;
+                        }
+                    }
+                }
+            } catch {}
         }
         // Loading-circle health check: during an ad strip+recovery loop the normal buffer monitor
         // is gated off (isActivelyStrippingAds), so a visibly stalled player would otherwise wait
