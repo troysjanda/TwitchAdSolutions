@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      657.0.0
+// @version      658.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 657;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 658;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -367,7 +367,13 @@
                                     // Response constructor only takes status/statusText/headers — url/redirected/type
                                     // must be defined on the instance. IVS WASM validates these (Spade/tracking
                                     // requests) and throws NetworkError if they're missing — TTV-AB v6.3.5 fix.
-                                    const response = new Response(responseData.body, {
+                                    // A null-body status (101/204/205/304) paired with a non-null body
+                                    // makes the Response constructor throw — and a 304/204 relayed here
+                                    // carries an empty-string ('') body (not null), which would throw and
+                                    // hang the relayed fetch. Drop the body for those statuses.
+                                    // Mirrors GosuDRM/TTV-AB v9.7.1 / v9.9.0.
+                                    const _nullBodyStatus = responseData.status === 101 || responseData.status === 204 || responseData.status === 205 || responseData.status === 304;
+                                    const response = new Response(_nullBodyStatus ? null : responseData.body, {
                                         status: responseData.status,
                                         statusText: responseData.statusText,
                                         headers: responseData.headers
