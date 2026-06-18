@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      661.0.0
+// @version      662.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 661;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 662;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -92,6 +92,7 @@
         scope.BackupSwapFirst = true;// On ad detect, immediately swap to a backup player-type m3u8 (TTV-AB-style). Avoids MediaSource mixing from strip activity — fewer loading circles in field. Cost: extra fetches on every ad break. Default on; set twitchAdSolutions_backupSwapFirst=false to disable.
         scope.RecoverFromSilentMute = true;// Issue #200: on hard reload, recover from Twitch's silent re-mute pattern when vaft has unmuted earlier this session. Default on; set twitchAdSolutions_recoverFromSilentMute=false to disable.
         scope.DisableInAdGapSeek = false;// In-ad frozen-buffer-gap seek (mirrors TTV-AB #33). Default on. Set twitchAdSolutions_disableInAdGapSeek=true to turn it OFF (for A/B isolation of mid-break pause/loading-circle reports).
+        scope.DisableInAdFreezeReload = false;// In-ad frozen-playhead reload escalation — readyState-independent backstop for audio-gap CSAI freezes the gap-seek can't catch (observed ~60s stalls). Default on. Set twitchAdSolutions_disableInAdFreezeReload=true to turn it OFF.
         scope.SkipPlayerReloadOnHevc = false;// If true this will skip player reload on streams which have 2k/4k quality (if you enable this and you use the 2k/4k quality setting you'll get error #4000 / #3000 / spinning wheel on chrome based browsers)
         scope.AlwaysReloadPlayerOnAd = false;// Always pause/play when entering/leaving ads
         scope.ReloadPlayerAfterAd = true;// After the ad finishes do a player reload instead of pause/play
@@ -1970,6 +1971,42 @@
                 }
             } catch {}
         }
+        // In-ad frozen-playhead reload escalation (readyState-independent backstop). The gap-seek above only
+        // fires on a video-buffer gap with readyState < 3, and the loading-circle reload below is gated
+        // isActivelyStrippingAds (false on a CSAI break). An audio-only buffer gap (video buffered ahead keeps
+        // readyState high) freezes the pinned autoplay backup with NO recovery until the end-of-break reload —
+        // observed ~60s CSAI stalls. Detect a frozen playhead purely by "currentTime not advancing while playing"
+        // (no readyState / buffered-shape requirement), give the gap-seek + native handling a ~10s grace window,
+        // then hard reload (rebuilds the MediaSource). Cooldown-guarded against storms. twitchAdSolutions_disableInAdFreezeReload=true to disable.
+        if (playerBufferState.inAdBreak && !DisableInAdFreezeReload && !playerBufferState.userPauseIntent && playerForMonitoringBuffering
+            && playerForMonitoringBuffering.state?.props?.content?.type === 'live') {
+            try {
+                const fv = playerForMonitoringBuffering.player?.getHTMLVideoElement?.();
+                const fct = fv ? fv.currentTime : 0;
+                const flast = playerBufferState.adFreezeLastPosition;
+                const frozen = fv && !fv.paused && !fv.ended && fct > 0
+                    && flast !== undefined && flast >= 0 && Math.abs(fct - flast) < 0.2;
+                playerBufferState.adFreezeLastPosition = fct;
+                const fnow = Date.now();
+                if (!frozen) {
+                    playerBufferState.adFreezeStartAt = 0;
+                } else if (!playerBufferState.adFreezeStartAt) {
+                    playerBufferState.adFreezeStartAt = fnow;
+                } else {
+                    const frozenMs = fnow - playerBufferState.adFreezeStartAt;
+                    const freezeReloadCooldown = 15000;
+                    const cooldownOk = !playerBufferState.lastAdFreezeReloadAt || (fnow - playerBufferState.lastAdFreezeReloadAt) > freezeReloadCooldown;
+                    const recentReload = playerBufferState.lastReloadAt && (fnow - playerBufferState.lastReloadAt) < freezeReloadCooldown;
+                    if (frozenMs > 10000 && cooldownOk && !recentReload) {
+                        console.log('[AD DEBUG] In-ad frozen-playhead escalation — playhead ' + fct.toFixed(1) + 's frozen ' + (frozenMs / 1000).toFixed(1) + 's during ad break (readyState ' + (fv.readyState) + ', gap-seek did not recover) — hard reload');
+                        playerBufferState.lastAdFreezeReloadAt = fnow;
+                        playerBufferState.adFreezeStartAt = 0;
+                        playerBufferState.adFreezeLastPosition = -1;
+                        doTwitchPlayerTask(false, true, 'early');
+                    }
+                }
+            } catch {}
+        }
         // Loading-circle health check: during an ad strip+recovery loop the normal buffer monitor
         // is gated off (isActivelyStrippingAds), so a visibly stalled player would otherwise wait
         // for the worker's poll-based early reload (~10s). This catches the visible stall ~3s after
@@ -2648,6 +2685,11 @@
         if (lsDisableInAdGapSeek === 'true') {
             DisableInAdGapSeek = true;
             console.log('[AD DEBUG] In-ad buffer-gap seek DISABLED via localStorage — a mid-break frozen-at-gap backup will not be seeked (A/B isolation)');
+        }
+        const lsDisableInAdFreezeReload = localStorage.getItem('twitchAdSolutions_disableInAdFreezeReload');
+        if (lsDisableInAdFreezeReload === 'true') {
+            DisableInAdFreezeReload = true;
+            console.log('[AD DEBUG] In-ad frozen-playhead reload escalation DISABLED via localStorage — a frozen pinned backup will not be reloaded (A/B isolation)');
         }
         const lsHideAdOverlay = localStorage.getItem('twitchAdSolutions_hideAdOverlay');
         if (lsHideAdOverlay === 'true') {
