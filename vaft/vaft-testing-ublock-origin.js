@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 662;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 663;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -1964,20 +1964,31 @@ twitch-videoad.js text/javascript
                 playerBufferState.adFreezeLastPosition = fct;
                 const fnow = Date.now();
                 if (!frozen) {
+                    if (playerBufferState.adFreezeStartAt && (fnow - playerBufferState.adFreezeStartAt) > 2000) {
+                        console.log('[AD DEBUG] In-ad frozen-playhead recovered before escalation — was frozen ' + ((fnow - playerBufferState.adFreezeStartAt) / 1000).toFixed(1) + 's, now advancing (gap-seek / native handling recovered it)');
+                    }
                     playerBufferState.adFreezeStartAt = 0;
+                    playerBufferState.adFreezeSuppressLogged = false;
                 } else if (!playerBufferState.adFreezeStartAt) {
                     playerBufferState.adFreezeStartAt = fnow;
+                    playerBufferState.adFreezeSuppressLogged = false;
+                    console.log('[AD DEBUG] In-ad frozen-playhead detected at ' + fct.toFixed(1) + 's (readyState ' + (fv.readyState ?? '?') + ') — watching; hard-reload if still frozen >10s');
                 } else {
                     const frozenMs = fnow - playerBufferState.adFreezeStartAt;
                     const freezeReloadCooldown = 15000;
                     const cooldownOk = !playerBufferState.lastAdFreezeReloadAt || (fnow - playerBufferState.lastAdFreezeReloadAt) > freezeReloadCooldown;
                     const recentReload = playerBufferState.lastReloadAt && (fnow - playerBufferState.lastReloadAt) < freezeReloadCooldown;
-                    if (frozenMs > 10000 && cooldownOk && !recentReload) {
-                        console.log('[AD DEBUG] In-ad frozen-playhead escalation — playhead ' + fct.toFixed(1) + 's frozen ' + (frozenMs / 1000).toFixed(1) + 's during ad break (readyState ' + (fv.readyState) + ', gap-seek did not recover) — hard reload');
-                        playerBufferState.lastAdFreezeReloadAt = fnow;
-                        playerBufferState.adFreezeStartAt = 0;
-                        playerBufferState.adFreezeLastPosition = -1;
-                        doTwitchPlayerTask(false, true, 'early');
+                    if (frozenMs > 10000) {
+                        if (cooldownOk && !recentReload) {
+                            console.log('[AD DEBUG] In-ad frozen-playhead escalation — playhead ' + fct.toFixed(1) + 's frozen ' + (frozenMs / 1000).toFixed(1) + 's during ad break (readyState ' + (fv.readyState ?? '?') + ', gap-seek did not recover) — hard reload');
+                            playerBufferState.lastAdFreezeReloadAt = fnow;
+                            playerBufferState.adFreezeStartAt = 0;
+                            playerBufferState.adFreezeLastPosition = -1;
+                            doTwitchPlayerTask(false, true, 'early');
+                        } else if (!playerBufferState.adFreezeSuppressLogged) {
+                            playerBufferState.adFreezeSuppressLogged = true;
+                            console.log('[AD DEBUG] In-ad frozen-playhead frozen ' + (frozenMs / 1000).toFixed(1) + 's but reload SUPPRESSED (a reload fired <15s ago: cooldownBlocked=' + (!cooldownOk) + ', recentReload=' + (!!recentReload) + ') — relying on end-of-break reload');
+                        }
                     }
                 }
             } catch {}
