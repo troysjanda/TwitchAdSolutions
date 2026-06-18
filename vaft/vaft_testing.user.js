@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      665.0.0
+// @version      666.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 665;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 666;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -2025,6 +2025,17 @@
                     }
                 }
             } catch {}
+        } else if (playerBufferState.adFreezeStartAt) {
+            // Not actively monitoring an in-break frozen playhead (break ended / paused / not live).
+            // Clear the freeze timer so a stale adFreezeStartAt can't leak across the inter-break gap:
+            // if the playhead freezes right as a break ends, the block stops running (gated inAdBreak)
+            // before the !frozen reset, leaving a stale timestamp that the NEXT break would read as a
+            // bogus multi-minute freeze (observed 981s "recovered") — and could spuriously escalate at
+            // break start if that first tick read as frozen against the stale position.
+            playerBufferState.adFreezeStartAt = 0;
+            playerBufferState.adFreezeLastPosition = -1;
+            playerBufferState.adFreezeDetectedLogged = false;
+            playerBufferState.adFreezeSuppressLogged = false;
         }
         // Loading-circle health check: during an ad strip+recovery loop the normal buffer monitor
         // is gated off (isActivelyStrippingAds), so a visibly stalled player would otherwise wait
