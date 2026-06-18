@@ -37,7 +37,7 @@ twitch-videoad.js text/javascript
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 664;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 665;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -1964,17 +1964,25 @@ twitch-videoad.js text/javascript
                 playerBufferState.adFreezeLastPosition = fct;
                 const fnow = Date.now();
                 if (!frozen) {
-                    if (playerBufferState.adFreezeStartAt && (fnow - playerBufferState.adFreezeStartAt) > 2000) {
+                    if (playerBufferState.adFreezeStartAt && (fnow - playerBufferState.adFreezeStartAt) > 3000) {
                         console.log('[AD DEBUG] In-ad frozen-playhead recovered before escalation — was frozen ' + ((fnow - playerBufferState.adFreezeStartAt) / 1000).toFixed(1) + 's, now advancing (gap-seek / native handling recovered it)');
                     }
                     playerBufferState.adFreezeStartAt = 0;
                     playerBufferState.adFreezeSuppressLogged = false;
+                    playerBufferState.adFreezeDetectedLogged = false;
                 } else if (!playerBufferState.adFreezeStartAt) {
+                    // First frozen tick — start the timer SILENTLY. Don't log here: stuttering/slow playback
+                    // alternates frozen/advancing every tick, which would re-arm and re-log "detected" on
+                    // every sit-tick (observed spam). Announce only once the freeze is SUSTAINED (>3s, below).
                     playerBufferState.adFreezeStartAt = fnow;
                     playerBufferState.adFreezeSuppressLogged = false;
-                    console.log('[AD DEBUG] In-ad frozen-playhead detected at ' + fct.toFixed(1) + 's (readyState ' + (fv.readyState ?? '?') + ', buffered ranges ' + (fv.buffered ? fv.buffered.length : '?') + ') — watching; hard-reload if still frozen >10s');
+                    playerBufferState.adFreezeDetectedLogged = false;
                 } else {
                     const frozenMs = fnow - playerBufferState.adFreezeStartAt;
+                    if (frozenMs > 3000 && !playerBufferState.adFreezeDetectedLogged) {
+                        playerBufferState.adFreezeDetectedLogged = true;
+                        console.log('[AD DEBUG] In-ad frozen-playhead sustained ' + (frozenMs / 1000).toFixed(1) + 's at ' + fct.toFixed(1) + 's (readyState ' + (fv.readyState ?? '?') + ', buffered ranges ' + (fv.buffered ? fv.buffered.length : '?') + ') — hard-reload if still frozen >10s');
+                    }
                     const freezeReloadCooldown = 15000;
                     const cooldownOk = !playerBufferState.lastAdFreezeReloadAt || (fnow - playerBufferState.lastAdFreezeReloadAt) > freezeReloadCooldown;
                     const recentReload = playerBufferState.lastReloadAt && (fnow - playerBufferState.lastReloadAt) < freezeReloadCooldown;
