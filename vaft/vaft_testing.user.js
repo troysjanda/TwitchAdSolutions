@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TwitchAdSolutions (vaft-testing)
 // @namespace    https://github.com/ryanbr/TwitchAdSolutions
-// @version      663.0.0
+// @version      664.0.0
 // @description  Multiple solutions for blocking Twitch ads (vaft testing variant)
 // @updateURL    https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
 // @downloadURL  https://github.com/ryanbr/TwitchAdSolutions/raw/master/vaft/vaft_testing.user.js
@@ -48,7 +48,7 @@
         }
     }
     'use strict';
-    const ourTwitchAdSolutionsVersion = 663;// Used to prevent conflicts with outdated versions of the scripts
+    const ourTwitchAdSolutionsVersion = 664;// Used to prevent conflicts with outdated versions of the scripts
     console.log('[AD DEBUG] TwitchAdSolutions vaft-testing v' + ourTwitchAdSolutionsVersion + ' loading');
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log('[AD DEBUG] CONFLICT: vaft-testing v' + ourTwitchAdSolutionsVersion + ' skipped — another script already active (v' + window.twitchAdSolutionsVersion + '). Remove duplicate scripts.');
@@ -1997,7 +1997,7 @@
                 } else if (!playerBufferState.adFreezeStartAt) {
                     playerBufferState.adFreezeStartAt = fnow;
                     playerBufferState.adFreezeSuppressLogged = false;
-                    console.log('[AD DEBUG] In-ad frozen-playhead detected at ' + fct.toFixed(1) + 's (readyState ' + (fv.readyState ?? '?') + ') — watching; hard-reload if still frozen >10s');
+                    console.log('[AD DEBUG] In-ad frozen-playhead detected at ' + fct.toFixed(1) + 's (readyState ' + (fv.readyState ?? '?') + ', buffered ranges ' + (fv.buffered ? fv.buffered.length : '?') + ') — watching; hard-reload if still frozen >10s');
                 } else {
                     const frozenMs = fnow - playerBufferState.adFreezeStartAt;
                     const freezeReloadCooldown = 15000;
@@ -2005,7 +2005,7 @@
                     const recentReload = playerBufferState.lastReloadAt && (fnow - playerBufferState.lastReloadAt) < freezeReloadCooldown;
                     if (frozenMs > 10000) {
                         if (cooldownOk && !recentReload) {
-                            console.log('[AD DEBUG] In-ad frozen-playhead escalation — playhead ' + fct.toFixed(1) + 's frozen ' + (frozenMs / 1000).toFixed(1) + 's during ad break (readyState ' + (fv.readyState ?? '?') + ', gap-seek did not recover) — hard reload');
+                            console.log('[AD DEBUG] In-ad frozen-playhead escalation — playhead ' + fct.toFixed(1) + 's frozen ' + (frozenMs / 1000).toFixed(1) + 's during ad break (readyState ' + (fv.readyState ?? '?') + ', buffered ranges ' + (fv.buffered ? fv.buffered.length : '?') + ' [length 1 = video contiguous, gap-seek blind], gap-seek did not recover) — hard reload');
                             playerBufferState.lastAdFreezeReloadAt = fnow;
                             playerBufferState.adFreezeStartAt = 0;
                             playerBufferState.adFreezeLastPosition = -1;
